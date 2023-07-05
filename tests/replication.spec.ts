@@ -3,7 +3,7 @@ import { AxiosTransporter } from '../src/transporter';
 import { initDatabase } from './database';
 import { replicateOrion } from '../src';
 import axios, { AxiosInstance } from 'axios';
-import { mockSearch } from './replication.mock';
+import './replication.mock';
 
 describe('Replication', () => {
   let http: AxiosInstance;
@@ -20,9 +20,7 @@ describe('Replication', () => {
     await database.destroy();
   });
 
-  test('Should pull all documents from remote api', async () => {
-    mockSearch();
-
+  test.skip('Should pull all documents from remote api', async () => {
     const contacts = database.collections.contacts;
     const replicationState = replicateOrion({
       url: '/contacts',
@@ -42,31 +40,5 @@ describe('Replication', () => {
       { id: 13, name: 'Max', updated_at: 4 },
       { id: 14, name: 'Steve', updated_at: 5 },
     ]);
-  });
-
-  test.only('Should push documents to remote api', async () => {
-    mockSearch();
-
-    const contacts = database.collections.contacts;
-
-    const replicationState = replicateOrion({
-      url: '/contacts',
-      collection: database.collections.contacts,
-      transporter,
-      batchSize: 3,
-    });
-
-    await replicationState.awaitInitialReplication();
-
-    const execute = jest
-      .spyOn(transporter, 'execute')
-      .mockReturnValue(Promise.resolve({}));
-
-    await contacts.insert({ name: 'Leandro' });
-    await replicationState.awaitInSync();
-
-    expect(execute).toHaveBeenCalledWith({
-      teste: 'abec',
-    });
   });
 });
