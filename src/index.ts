@@ -1,8 +1,7 @@
 import { RxReplicationState, replicateRxCollection } from 'rxdb/plugins/replication';
-import { RxReplicationPullStreamItem, RxReplicationWriteToMasterRow } from 'rxdb';
+import { RxReplicationWriteToMasterRow } from 'rxdb';
 import { OrionOptions, Request } from './types';
 import { last, omit } from 'lodash';
-import { Subject } from 'rxjs';
 
 export const ORION_REPLICATION_PREFIX = 'orion-';
 
@@ -25,11 +24,9 @@ export function replicateOrion<RxDocType>({
 }: OrionOptions<RxDocType>): RxReplicationState<RxDocType, any> {
   const primaryPath = collection.schema.primaryPath;
   const baseUrl = typeof url === 'string' ? { path: url } : url;
-  const pullStream$ = new Subject<RxReplicationPullStreamItem<RxDocType, any>>();
 
   const replicationPrimitivesPull = {
     batchSize,
-    stream$: pullStream$.asObservable(),
     modifier: modifier?.pull,
     handler: async (lastPulledCheckpoint: any, batchSize: number) => {
       const updated = lastPulledCheckpoint?.[updatedField];
