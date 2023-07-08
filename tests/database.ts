@@ -1,9 +1,9 @@
 import { createRxDatabase } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 
-const contactSchema = {
+export const roleSchema = {
   version: 0,
-  description: 'Describes a contact',
+  description: 'The role schema',
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -14,8 +14,28 @@ const contactSchema = {
     name: {
       type: 'string',
     },
-    updated_at: {
-      type: 'number',
+  },
+};
+
+export const userSchema = {
+  version: 0,
+  description: 'The user schema',
+  primaryKey: 'id',
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      maxLength: 100,
+    },
+    name: {
+      type: 'string',
+    },
+    roles: {
+      type: 'array',
+      ref: 'roles',
+      items: {
+        type: 'string',
+      },
     },
   },
 };
@@ -27,8 +47,11 @@ export async function initDatabase() {
   });
 
   await database.addCollections({
-    contacts: {
-      schema: contactSchema,
+    users: {
+      schema: userSchema,
+    },
+    roles: {
+      schema: roleSchema,
     },
   });
 

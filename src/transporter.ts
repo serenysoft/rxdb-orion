@@ -1,15 +1,13 @@
 import { AxiosInstance } from 'axios';
-import { compact, isNil, omitBy } from 'lodash';
+import { get, isNil, omitBy } from 'lodash';
 import { Request, Transporter } from './types';
+import { buildUrl } from './helpers';
 
 export class AxiosTransporter<T = any> implements Transporter {
   constructor(private http: AxiosInstance) {}
 
   async execute(request: Request): Promise<T> {
-    const url = compact([request.path, request.key, request.action])
-      .map((element) => String(element).replace(/^\/|\/$/, ''))
-      .join('/');
-
+    const url = buildUrl([request.path, request.key, request.action]);
     const data = omitBy(request.data, isNil);
 
     try {
@@ -21,7 +19,7 @@ export class AxiosTransporter<T = any> implements Transporter {
         data,
       });
 
-      return request.wrap ? response.data[request.wrap] : response.data;
+      return request.wrap ? get(response.data, request.wrap) : response.data;
     } catch (error: any) {
       console.log(error.message);
       throw error;

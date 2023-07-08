@@ -1,27 +1,40 @@
 import nock from 'nock';
 
-nock('http://api.fake.test')
-  .post('/contacts/search')
-  .query({ page: 1, limit: 3 })
-  .reply(200, {
-    data: [
-      { id: 10, name: 'Jeff', updated_at: 1 },
-      { id: 11, name: 'Mark', updated_at: 2 },
-      { id: 12, name: 'Bill', updated_at: 3 },
-    ],
-  })
-  .post('/contacts/search')
-  .query({ page: 2, limit: 3 })
-  .reply(200, {
-    data: [
-      { id: 13, name: 'Max', updated_at: 4 },
-      { id: 14, name: 'Steve', updated_at: 5 },
-    ],
-  })
-  .post('/contacts/search', {
-    scopes: [{ name: 'minUpdatedAt', parameters: [5] }],
-  })
+nock('http://api.fake.push')
+  .post('/users')
+  .reply(200, { id: '1', name: 'Jeff' })
+  .patch('/users/1/roles/sync')
+  .reply(200, [])
+  .post('/users/search')
   .query({ page: 1, limit: 3 })
   .reply(200, {
     data: [],
+  });
+
+nock('http://api.fake.pull')
+  .post('/users/search')
+  .query({ page: 1, limit: 3 })
+  .reply(200, {
+    data: [
+      { id: '10', name: 'Jeff' },
+      { id: '11', name: 'Mark' },
+    ],
+  })
+  .post('/users/search')
+  .query({ page: 1, limit: 3 })
+  .reply(200, {
+    data: [
+      { id: '10', name: 'Jeff' },
+      { id: '11', name: 'Mark' },
+    ],
+  })
+  .post('/users/10/roles/search')
+  .query({ page: 1, limit: 3 })
+  .reply(200, {
+    data: [{ id: '100', name: 'Admin' }],
+  })
+  .post('/users/11/roles/search')
+  .query({ page: 1, limit: 3 })
+  .reply(200, {
+    data: [{ id: '200', name: 'Editor' }],
   });

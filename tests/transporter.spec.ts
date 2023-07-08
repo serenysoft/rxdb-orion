@@ -42,9 +42,7 @@ describe('Axios transporter', () => {
       last_name: null,
     };
 
-    const request = jest
-      .spyOn(http, 'request')
-      .mockReturnValue(Promise.resolve({}));
+    const request = jest.spyOn(http, 'request').mockReturnValue(Promise.resolve({}));
 
     await transporter.execute({
       path: '/users',
@@ -58,7 +56,7 @@ describe('Axios transporter', () => {
         name: 'jeff',
       },
       method: 'POST',
-      url: 'users',
+      url: '/users',
       headers: undefined,
       params: undefined,
     });
