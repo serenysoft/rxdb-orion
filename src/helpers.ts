@@ -49,7 +49,7 @@ export async function executeFetch(request: Request) {
   };
 
   if (request.params && !isEmpty(request.params)) {
-    url += '?' + new URLSearchParams(request.params as any);
+    url = [url, new URLSearchParams(request.params as any)].join('?');
   }
 
   if (request.data && !isEmpty(request.data)) {
@@ -65,6 +65,7 @@ export async function executePull({
   schema,
   url,
   batchSize,
+  params,
   wrap,
   headers,
   transporter,
@@ -81,6 +82,7 @@ export async function executePull({
       method: 'POST',
       action: '/search',
       params: {
+        ...params,
         page: page + 1,
         limit: batchSize,
       },

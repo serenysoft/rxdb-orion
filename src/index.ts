@@ -9,6 +9,7 @@ export const ORION_REPLICATION_PREFIX = 'orion-';
 export function replicateOrion<RxDocType>({
   url,
   headers,
+  params,
   collection,
   modifier,
   batchSize,
@@ -34,6 +35,7 @@ export function replicateOrion<RxDocType>({
         url,
         schema: collection.schema,
         headers,
+        params,
         batchSize,
         wrap,
         transporter,
@@ -62,6 +64,7 @@ export function replicateOrion<RxDocType>({
       return executePush({
         url,
         rows,
+        headers,
         schema: collection.schema,
         deletedField,
         primaryPath,

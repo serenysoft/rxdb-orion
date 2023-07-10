@@ -43,6 +43,7 @@ export type OrionBaseExecuteOptions = OrionBaseOptions & {
 };
 
 export type OrionPullExecuteOptions = OrionBaseExecuteOptions & {
+  params?: RequestParams;
   data?: any;
 };
 
