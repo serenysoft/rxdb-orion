@@ -1,5 +1,6 @@
 import { createRxDatabase } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
+import { indexedDB, IDBKeyRange } from 'fake-indexeddb';
 
 export const roleSchema = {
   version: 0,
@@ -43,7 +44,10 @@ export const userSchema = {
 export async function initDatabase() {
   const database = await createRxDatabase({
     name: 'testdb',
-    storage: getRxStorageDexie(),
+    storage: getRxStorageDexie({
+      indexedDB: indexedDB,
+      IDBKeyRange: IDBKeyRange,
+    }),
   });
 
   await database.addCollections({

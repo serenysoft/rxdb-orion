@@ -2,40 +2,38 @@ import { last } from 'lodash';
 import { RxReplicationState, replicateRxCollection } from 'rxdb/plugins/replication';
 import { RxReplicationWriteToMasterRow } from 'rxdb';
 import { OrionReplicationOptions } from './types';
-import { executePull, executePush } from './helpers';
+import { executeFetch, executePull, executePush } from './helpers';
 
 export const ORION_REPLICATION_PREFIX = 'orion-';
 
-export * from './transporter';
-
 export function replicateOrion<RxDocType>({
   url,
+  headers,
   collection,
-  transporter,
   modifier,
   batchSize,
   waitForLeadership,
   deletedField = '_deleted',
-  updatedField = 'updated_at',
   updatedParam = 'minUpdatedAt',
   wrap = 'data',
   live = true,
   retryTime = 1000 * 5, // in ms
   autoStart = false,
+  transporter = executeFetch,
 }: OrionReplicationOptions<RxDocType>): RxReplicationState<RxDocType, any> {
   const primaryPath = collection.schema.primaryPath;
-  const baseUrl = typeof url === 'string' ? { path: url } : url;
 
   const replicationPrimitivesPull = {
     batchSize,
     modifier: modifier?.pull,
     handler: async (lastPulledCheckpoint: any, batchSize: number) => {
-      const updated = lastPulledCheckpoint?.[updatedField];
+      const updated = lastPulledCheckpoint?.updatedAt;
       const scopes = updated ? [{ name: updatedParam, parameters: [updated] }] : null;
 
       const result = await executePull({
-        baseUrl,
+        url,
         schema: collection.schema,
+        headers,
         batchSize,
         wrap,
         transporter,
@@ -46,7 +44,7 @@ export function replicateOrion<RxDocType>({
       const checkpoint = lastDoc
         ? {
             [primaryPath]: lastDoc[primaryPath],
-            [updatedField]: lastDoc[updatedField],
+            updatedAt: lastDoc.updatedAt,
           }
         : lastPulledCheckpoint;
 
@@ -62,7 +60,7 @@ export function replicateOrion<RxDocType>({
     modifier: modifier?.push,
     handler: (rows: RxReplicationWriteToMasterRow<RxDocType>[]): Promise<[]> => {
       return executePush({
-        baseUrl,
+        url,
         rows,
         schema: collection.schema,
         deletedField,

@@ -1,6 +1,11 @@
 import { RxSchema } from 'rxdb';
-import { OrionPullExecuteOptions, OrionPushExecuteOptions } from './types';
-import { compact, omit } from 'lodash';
+import {
+  OrionPullExecuteOptions,
+  OrionPushExecuteOptions,
+  Request,
+  Transporter,
+} from './types';
+import { compact, get, isEmpty, isNil, omit, omitBy } from 'lodash';
 
 export function buildUrl(parts: (number | string)[]): string {
   return compact(parts)
@@ -21,11 +26,47 @@ export function extractReferences(schema: RxSchema): string[] {
   return result;
 }
 
+export async function executeRequest(transporter: Transporter, request: Request) {
+  const url = buildUrl([request.url, request.key, request.action]);
+  const data = omitBy(request.data, isNil);
+
+  const response = await transporter({
+    url: url,
+    method: request.method,
+    headers: request.headers,
+    params: request.params,
+    data,
+  });
+
+  return request.wrap ? get(response, request.wrap) : response;
+}
+
+export async function executeFetch(request: Request) {
+  let url = request.url;
+  const params: any = {
+    method: request.method,
+    headers: request.headers,
+  };
+
+  if (request.params && !isEmpty(request.params)) {
+    url += '?' + new URLSearchParams(request.params as any);
+  }
+
+  if (request.data && !isEmpty(request.data)) {
+    const data = omitBy(request.data, isNil);
+    params.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, params);
+  return await response.json();
+}
+
 export async function executePull({
   schema,
-  baseUrl,
+  url,
   batchSize,
   wrap,
+  headers,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
   let data;
@@ -34,27 +75,27 @@ export async function executePull({
 
   do {
     const request = {
+      url,
+      wrap,
+      headers,
       method: 'POST',
       action: '/search',
-      wrap,
       params: {
         page: page + 1,
         limit: batchSize,
       },
-      ...baseUrl,
     };
 
-    data = await transporter.execute(request);
+    data = await executeRequest(transporter, request);
 
-    if (schema) {
+    if (schema && data.length) {
       const primaryPath = schema.primaryPath;
       const references = extractReferences(schema);
 
       for (const item of data) {
         for (const ref of references) {
-          const path = `${baseUrl.path}/${item[primaryPath]}/${ref}`;
           item[ref] = await executePull({
-            baseUrl: { path },
+            url: `${url}/${item[primaryPath]}/${ref}`,
             transporter,
             wrap,
             batchSize,
@@ -71,14 +112,15 @@ export async function executePull({
 }
 
 export async function executePush({
-  baseUrl,
+  url,
+  headers,
   rows,
   schema,
   deletedField,
   primaryPath,
   transporter,
 }: OrionPushExecuteOptions): Promise<[]> {
-  const request = omit<any>(baseUrl, ['params']);
+  const request: Request = { url, headers };
   const references = extractReferences(schema);
 
   for (const row of rows) {
@@ -98,15 +140,14 @@ export async function executePush({
       request.data = document;
     }
 
-    const result = await transporter.execute(request);
+    const result = await executeRequest(transporter, request);
 
     for (const ref of references) {
-      const path = buildUrl([baseUrl.path, result[primaryPath], ref, '/sync']);
-
-      await transporter.execute({
-        path,
+      await executeRequest(transporter, {
+        url: buildUrl([url, result[primaryPath], ref, '/sync']),
         method: 'PATCH',
         data: { 'resources': newDocState[ref] },
+        headers,
       });
     }
   }

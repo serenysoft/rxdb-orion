@@ -1,19 +1,25 @@
 import nock from 'nock';
 
 nock('http://api.fake.push')
+  .post('/users/search')
+  .query({ page: 1, limit: 3 })
+  .reply(200, { data: [] })
   .post('/users')
   .reply(200, { id: '1', name: 'Jeff' })
   .patch('/users/1/roles/sync')
-  .reply(200, [])
-  .post('/users/search')
-  .query({ page: 1, limit: 3 })
   .reply(200, {
-    data: [],
+    data: [
+      {
+        attached: ['100', '200'],
+        detached: [],
+        updated: [],
+      },
+    ],
   });
 
 nock('http://api.fake.pull')
   .post('/users/search')
-  .query({ page: 1, limit: 3 })
+  .query({ page: 1, limit: 3, include: 'roles' })
   .reply(200, {
     data: [
       { id: '10', name: 'Jeff' },
