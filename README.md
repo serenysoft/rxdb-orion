@@ -1,5 +1,7 @@
 # [RxDB](https://rxdb.info) - Replication with [Laravel Orion](https://tailflow.github.io/laravel-orion-docs)
 
+![Build Status](https://github.com/serenysoft/rxdb-replication-orion/actions/workflows/ci.yml/badge.svg)
+
 The Orion replication provides handlers for run replication with Orion REST API as the transportation layer.
 
 ## Usage

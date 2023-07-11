@@ -15,11 +15,16 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: check Node.js version
+      - name: Check Node.js version
         run: node --version
 
-      - name: install npm dependencies
+      - name: Install npm dependencies
         run: npm install
 
-      - name: run tests
+      - name: Run tests
         run: npm run test:ci
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
