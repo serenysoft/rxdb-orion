@@ -1,10 +1,54 @@
 import { last } from 'lodash';
-import { RxReplicationState, replicateRxCollection } from 'rxdb/plugins/replication';
+import {
+  RxReplicationState,
+  replicateRxCollection,
+} from 'rxdb/plugins/replication';
 import { RxReplicationWriteToMasterRow } from 'rxdb';
 import { OrionReplicationOptions } from './types';
 import { executeFetch, executePull, executePush } from './helpers';
 
 export const ORION_REPLICATION_PREFIX = 'orion-';
+
+export class Manager {
+  constructor(
+    private replications: RxReplicationState<any, any>[],
+    private delay: number = 10000
+  ) {}
+
+  private intervals: NodeJS.Timer[] = [];
+
+  async start(awaitInit = true): Promise<void> {
+    if (this.intervals.length) {
+      return;
+    }
+
+    await Promise.all(
+      this.replications.map(async (replicationState) => {
+        await replicationState.start();
+
+        if (awaitInit) {
+          await replicationState.awaitInitialReplication();
+        }
+
+        this.intervals.push(
+          setInterval(() => replicationState.reSync(), this.delay)
+        );
+      })
+    );
+  }
+
+  async stop(): Promise<void> {
+    while (this.intervals.length) {
+      clearInterval(this.intervals.pop());
+    }
+  }
+
+  async cancel(): Promise<void> {
+    await Promise.all(
+      this.replications.map((replicationState) => replicationState.cancel())
+    );
+  }
+}
 
 export function replicateOrion<RxDocType>({
   url,
@@ -29,7 +73,9 @@ export function replicateOrion<RxDocType>({
     modifier: modifier?.pull,
     handler: async (lastPulledCheckpoint: any, batchSize: number) => {
       const updated = lastPulledCheckpoint?.updatedAt;
-      const scopes = updated ? [{ name: updatedParam, parameters: [updated] }] : null;
+      const scopes = updated
+        ? [{ name: updatedParam, parameters: [updated] }]
+        : null;
 
       const result = await executePull({
         url,
@@ -60,7 +106,9 @@ export function replicateOrion<RxDocType>({
   const replicationPrimitivesPush = {
     batchSize,
     modifier: modifier?.push,
-    handler: (rows: RxReplicationWriteToMasterRow<RxDocType>[]): Promise<[]> => {
+    handler: (
+      rows: RxReplicationWriteToMasterRow<RxDocType>[]
+    ): Promise<[]> => {
       return executePush({
         url,
         rows,

@@ -46,3 +46,14 @@ nock('http://api.fake.pull')
   .reply(200, {
     data: [{ id: '200', name: 'Editor' }],
   });
+
+
+  nock('http://api.fake.manager')
+  .post('/roles/search')
+  .query({page: 1, limit: 3})
+  .reply(200, {
+    data: [
+      { id: '20', name: 'Admin' },
+      { id: '21', name: 'Editor' },
+    ],
+  });

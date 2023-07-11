@@ -54,7 +54,10 @@ export type OrionPushExecuteOptions = OrionBaseExecuteOptions & {
 };
 
 export type OrionReplicationOptions<RxDocType> = OrionBaseOptions &
-  Omit<ReplicationOptions<RxDocType, any>, 'pull' | 'push' | 'replicationIdentifier'> & {
+  Omit<
+    ReplicationOptions<RxDocType, any>,
+    'pull' | 'push' | 'replicationIdentifier'
+  > & {
     url: string;
     headers?: RequestHeaders;
     params?: RequestParams;

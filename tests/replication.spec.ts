@@ -1,6 +1,6 @@
 import { RxDatabase } from 'rxdb';
 import { initDatabase } from './database';
-import { replicateOrion } from '../src';
+import { Manager, replicateOrion } from '../src';
 import { executeFetch } from '../src/helpers';
 import { Transporter } from '../src/types';
 import fetch from 'node-fetch';
@@ -11,7 +11,7 @@ describe('Replication', () => {
   let transporter: Transporter;
 
   beforeAll(() => {
-    (globalThis as any).fetch = fetch;
+    globalThis.fetch = fetch as any;
   });
 
   beforeEach(async () => {
@@ -46,7 +46,9 @@ describe('Replication', () => {
       })
     );
 
-    const results = (await users.find().exec()).map((user) => user.toMutableJSON());
+    const results = (await users.find().exec()).map((user) =>
+      user.toMutableJSON()
+    );
 
     expect(results).toEqual(
       expect.objectContaining([
@@ -57,7 +59,6 @@ describe('Replication', () => {
   });
 
   it('Should push documents to remote api', async () => {
-
     const users = database.collections.users;
 
     const replicationState = replicateOrion({
@@ -110,5 +111,33 @@ describe('Replication', () => {
         method: 'DELETE',
       })
     );
+  });
+
+  it('Should manage multiple replications', async () => {
+    const roles = database.collections.roles;
+
+    const userReplicationState = replicateOrion({
+      url: 'http://api.fake.manager/roles',
+      collection: roles,
+      batchSize: 3,
+    });
+
+    const start = jest.spyOn(userReplicationState, 'start');
+    const cancel = jest.spyOn(userReplicationState, 'cancel');
+
+    const manager = new Manager([userReplicationState], 1000);
+
+    await manager.start(true);
+    await manager.start();
+
+    expect(start).toHaveBeenCalledTimes(1);
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    await manager.stop();
+    expect((manager as any).intervals.length).toEqual(0);
+
+    await manager.cancel();
+    expect(cancel).toHaveBeenCalled();
   });
 });

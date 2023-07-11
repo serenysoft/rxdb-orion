@@ -64,7 +64,7 @@
     "jest": "^29.6.1",
     "nock": "^13.3.1",
     "node-fetch": "^2.6.12",
-    "prettier": "^3.0.0",
+    "prettier": "^2.8.8",
     "release-it": "^16.1.0",
     "rimraf": "^5.0.1",
     "ts-jest": "^29.1.1",
@@ -80,51 +80,6 @@
       "before:init": [
         "npm run build"
       ]
-    }
-  },
-  "eslintConfig": {
-    "root": true,
-    "env": {
-      "node": true
-    },
-    "extends": [
-      "eslint:recommended",
-      "plugin:@typescript-eslint/eslint-recommended",
-      "plugin:@typescript-eslint/recommended",
-      "plugin:prettier/recommended"
-    ],
-    "parserOptions": {
-      "ecmaVersion": 2020,
-      "parser": "@typescript-eslint/parser",
-      "sourceType": "module"
-    },
-    "rules": {
-      "semi": [
-        "error",
-        "always"
-      ],
-      "quotes": [
-        "error",
-        "single",
-        {
-          "avoidEscape": true
-        }
-      ],
-      "prettier/prettier": [
-        "error",
-        {
-          "endOfLine": "auto",
-          "singleQuote": true,
-          "quoteProps": "preserve",
-          "bracketSameLine": false,
-          "printWidth": 90
-        }
-      ],
-      "@typescript-eslint/explicit-module-boundary-types": "off",
-      "@typescript-eslint/no-inferrable-types": "off",
-      "@typescript-eslint/no-unused-vars": "error",
-      "@typescript-eslint/no-non-null-assertion": "off",
-      "@typescript-eslint/no-explicit-any": "off"
     }
   }
 }

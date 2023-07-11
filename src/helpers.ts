@@ -26,7 +26,10 @@ export function extractReferences(schema: RxSchema): string[] {
   return result;
 }
 
-export async function executeRequest(transporter: Transporter, request: Request) {
+export async function executeRequest(
+  transporter: Transporter,
+  request: Request
+) {
   const url = buildUrl([request.url, request.key, request.action]);
   const data = omitBy(request.data, isNil);
 
