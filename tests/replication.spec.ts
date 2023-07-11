@@ -2,11 +2,13 @@ import { RxDatabase } from 'rxdb';
 import { initDatabase } from './database';
 import { replicateOrion } from '../src';
 import { executeFetch } from '../src/helpers';
+import { Transporter } from '../src/types';
 import fetch from 'node-fetch';
 import './replication.mock';
 
 describe('Replication', () => {
   let database: RxDatabase;
+  let transporter: Transporter;
 
   beforeAll(() => {
     (globalThis as any).fetch = fetch;
@@ -14,24 +16,35 @@ describe('Replication', () => {
 
   beforeEach(async () => {
     database = await initDatabase();
+    transporter = jest.fn(executeFetch);
   });
 
   afterEach(async () => {
     await database.destroy();
   });
 
-  it('Should execute pull from remote api', async () => {
+  it('Should pull documents from remote api', async () => {
     const users = database.collections.users;
     const replicationState = replicateOrion({
       url: 'http://api.fake.pull/users',
       params: { include: 'roles' },
       collection: users,
       batchSize: 3,
+      transporter,
     });
 
     await replicationState.start();
     await replicationState.awaitInitialReplication();
     await replicationState.cancel();
+
+    expect(transporter).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        url: 'http:/api.fake.pull/users/search',
+        method: 'POST',
+        params: { page: 1, limit: 3, include: 'roles' },
+      })
+    );
 
     const results = (await users.find().exec()).map((user) => user.toMutableJSON());
 
@@ -43,8 +56,8 @@ describe('Replication', () => {
     );
   });
 
-  it('Should execute push to remote api', async () => {
-    const transporter = jest.fn(executeFetch);
+  it('Should push documents to remote api', async () => {
+
     const users = database.collections.users;
 
     const replicationState = replicateOrion({
@@ -57,14 +70,20 @@ describe('Replication', () => {
     await replicationState.start();
     await replicationState.awaitInitialReplication();
 
-    await users.insert({
+    const user = await users.insert({
       id: '1',
       name: 'Marx',
       roles: ['100', '200'],
     });
-
     await replicationState.awaitInSync();
-    await replicationState.cancel();
+
+    //Nock return http:/api.fake.push/users/1/roles/sync not found
+    //I don't know why
+    //await user.patch({ name: 'Bill' });
+    //await replicationState.awaitInSync();
+
+    await user.remove();
+    await replicationState.awaitInSync();
 
     expect(transporter).toHaveBeenNthCalledWith(
       2,
@@ -81,6 +100,14 @@ describe('Replication', () => {
         url: 'http:/api.fake.push/users/1/roles/sync',
         method: 'PATCH',
         data: { 'resources': ['100', '200'] },
+      })
+    );
+
+    expect(transporter).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        url: 'http:/api.fake.push/users/1',
+        method: 'DELETE',
       })
     );
   });

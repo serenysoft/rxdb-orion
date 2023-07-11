@@ -126,31 +126,35 @@ export async function executePush({
   const references = extractReferences(schema);
 
   for (const row of rows) {
-    const isNew = !row.assumedMasterState;
     const newDocState = row.newDocumentState as any;
-    const document = omit<any>(newDocState, [deletedField, ...references]);
+    const data = omit<any>(newDocState, [deletedField, ...references]);
 
-    if (document[deletedField]) {
+    const isDeleted = newDocState[deletedField];
+    const isNew = !row.assumedMasterState;
+
+    if (isDeleted) {
       request.method = 'DELETE';
-      request.key = document[primaryPath];
+      request.key = data[primaryPath];
     } else if (isNew) {
       request.method = 'POST';
-      request.data = document;
+      request.data = data;
     } else {
       request.method = 'PUT';
-      request.key = document[primaryPath];
-      request.data = document;
+      request.key = data[primaryPath];
+      request.data = data;
     }
 
-    const result = await executeRequest(transporter, request);
+    await executeRequest(transporter, request);
 
-    for (const ref of references) {
-      await executeRequest(transporter, {
-        url: buildUrl([url, result[primaryPath], ref, '/sync']),
-        method: 'PATCH',
-        data: { 'resources': newDocState[ref] },
-        headers,
-      });
+    if (!isDeleted) {
+      for (const ref of references) {
+        await executeRequest(transporter, {
+          url: buildUrl([url, data[primaryPath], ref, '/sync']),
+          method: 'PATCH',
+          data: { 'resources': newDocState[ref] },
+          headers,
+        });
+      }
     }
   }
 
