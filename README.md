@@ -1,10 +1,6 @@
-# RxDB - Replication with [Laravel Orion](https://tailflow.github.io/laravel-orion-docs)
+# [RxDB](https://rxdb.info) - Replication with [Laravel Orion](https://tailflow.github.io/laravel-orion-docs)
 
 The Orion replication provides handlers for run replication with Orion REST API as the transportation layer.
-
-## Requirements
-
-- [Node](https://nodejs.org/)
 
 ## Usage
 
@@ -46,10 +42,10 @@ await replicationState.start();
 ## Manager
 
 It is common for an application to require handling multiple replications.
-For this reason, the package includes the Manager class to assist in such situations.
+For this reason, the package includes the `Manager` class to assist in such situations.
 
 As [Laravel Orion](https://tailflow.github.io/laravel-orion-docs) backend is unable to send events to the client,
-the manager executes `reSync()` every `10000ms` by default.
+the **manager** executes `reSync()` every `10000ms` by default.
 
 You can customize the interval as you see fit.
 
