@@ -52,8 +52,8 @@ describe('Replication', () => {
 
     expect(results).toEqual(
       expect.objectContaining([
-        { id: '10', name: 'Jeff', roles: [{ id: '100', name: 'Admin' }] },
-        { id: '11', name: 'Mark', roles: [{ id: '200', name: 'Editor' }] },
+        { id: '10', name: 'Jeff', roles: ['100'] },
+        { id: '11', name: 'Mark', roles: ['200'] },
       ])
     );
   });

@@ -79,7 +79,7 @@ export function replicateOrion<RxDocType>({
 
       const result = await executePull({
         url,
-        schema: collection.schema,
+        collection,
         headers,
         params,
         batchSize,
@@ -113,7 +113,7 @@ export function replicateOrion<RxDocType>({
         url,
         rows,
         headers,
-        schema: collection.schema,
+        collection,
         deletedField,
         primaryPath,
         transporter,

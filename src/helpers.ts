@@ -13,15 +13,15 @@ export function buildUrl(parts: (number | string)[]): string {
     .replace(/\/{2,}/g, '/');
 }
 
-export function extractReferences(schema: RxSchema): string[] {
-  const result: string[] = [];
+export function extractReferences(schema: RxSchema): Record<string, string> {
+  const result: Record<string, string> = {};
   const entries = Object.entries(schema.jsonSchema.properties);
 
-  entries.forEach(([key, value]) => {
+  for (const [key, value] of entries) {
     if (value.type === 'array' && value.ref) {
-      result.push(key);
+      result[key] = value.ref;
     }
-  });
+  }
 
   return result;
 }
@@ -65,7 +65,7 @@ export async function executeFetch(request: Request) {
 }
 
 export async function executePull({
-  schema,
+  collection,
   url,
   batchSize,
   params,
@@ -93,18 +93,21 @@ export async function executePull({
 
     data = await executeRequest(transporter, request);
 
-    if (schema && data.length) {
-      const primaryPath = schema.primaryPath;
-      const references = extractReferences(schema);
+    if (collection && data.length) {
+      const primaryPath = collection.schema.primaryPath;
+      const references = extractReferences(collection.schema);
 
       for (const item of data) {
-        for (const ref of references) {
-          item[ref] = await executePull({
-            url: `${url}/${item[primaryPath]}/${ref}`,
+        for (const [key, value] of Object.entries(references)) {
+          const rows = await executePull({
+            url: `${url}/${item[primaryPath]}/${key}`,
             transporter,
             wrap,
             batchSize,
           });
+
+          const schema = collection.database.collections[value].schema;
+          item[key] = rows.map((row) => row[schema.primaryPath]);
         }
       }
     }
@@ -120,13 +123,13 @@ export async function executePush({
   url,
   headers,
   rows,
-  schema,
+  collection,
   deletedField,
   primaryPath,
   transporter,
 }: OrionPushExecuteOptions): Promise<[]> {
   const request: Request = { url, headers };
-  const references = extractReferences(schema);
+  const references = Object.keys(extractReferences(collection.schema));
 
   for (const row of rows) {
     const newDocState = row.newDocumentState as any;

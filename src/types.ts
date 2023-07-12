@@ -1,8 +1,8 @@
 import {
   MaybePromise,
   ReplicationOptions,
+  RxCollection,
   RxReplicationWriteToMasterRow,
-  RxSchema,
   WithDeleted,
 } from 'rxdb';
 
@@ -39,7 +39,7 @@ export type OrionBaseOptions = {
 export type OrionBaseExecuteOptions = OrionBaseOptions & {
   url?: string;
   headers?: RequestHeaders;
-  schema?: RxSchema<any>;
+  collection?: RxCollection<any>;
 };
 
 export type OrionPullExecuteOptions = OrionBaseExecuteOptions & {
