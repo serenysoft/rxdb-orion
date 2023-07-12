@@ -1,6 +1,6 @@
 # [RxDB](https://rxdb.info) - Replication with [Laravel Orion](https://tailflow.github.io/laravel-orion-docs)
 
-![Build Status](https://github.com/serenysoft/rxdb-replication-orion/actions/workflows/ci.yml/badge.svg)
+[![Build Status](https://github.com/serenysoft/rxdb-replication-orion/actions/workflows/ci.yml/badge.svg)](https://github.com/serenysoft/rxdb-replication-orion/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/serenysoft/rxdb-replication-orion/branch/master/graph/badge.svg?token=GANBHB4ZHS)](https://codecov.io/gh/serenysoft/rxdb-replication-orion)
 
 The Orion replication provides handlers for run replication with Orion REST API as the transportation layer.
@@ -10,7 +10,7 @@ The Orion replication provides handlers for run replication with Orion REST API 
 The package usage is simple, but there are some important rules to follow:
 
 - Array properties with ref will be replicated using [`sync` route](https://tailflow.github.io/laravel-orion-docs/v2.x/guide/relationships.html#syncing)
-- For other relationship properties, specific replication will be required for each one.
+- For other relationship properties, a specific replication will be required for each one.
 
 ```typescript
 import { replicateOrion } from 'rxdb-replication-orion';
@@ -53,7 +53,7 @@ the **manager** executes `reSync()` every `10000ms` by default.
 You can customize the interval as you see fit.
 
 ```typescript
-import { Manager } from 'rxdb-replication-orion';
+import { replicateOrion, Manager } from 'rxdb-replication-orion';
 
 const manager = new Manager([
   replicateOrion({
