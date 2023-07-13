@@ -69,12 +69,13 @@ export async function executePull({
   url,
   batchSize,
   params,
+  data,
   wrap,
   headers,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
-  let data;
   let page = 0;
+  let response;
   const result = [];
 
   do {
@@ -82,6 +83,7 @@ export async function executePull({
       url,
       wrap,
       headers,
+      data,
       method: 'POST',
       action: '/search',
       params: {
@@ -91,13 +93,13 @@ export async function executePull({
       },
     };
 
-    data = await executeRequest(transporter, request);
+    response = await executeRequest(transporter, request);
 
-    if (collection && data.length) {
+    if (collection && response.length) {
       const primaryPath = collection.schema.primaryPath;
       const references = extractReferences(collection.schema);
 
-      for (const item of data) {
+      for (const item of response) {
         for (const [key, value] of Object.entries(references)) {
           const rows = await executePull({
             url: `${url}/${item[primaryPath]}/${key}`,
@@ -112,9 +114,9 @@ export async function executePull({
       }
     }
 
-    result.push(...data);
+    result.push(...response);
     page++;
-  } while (data.length === batchSize);
+  } while (response.length === batchSize);
 
   return result;
 }
