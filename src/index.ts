@@ -1,4 +1,4 @@
-import { last } from 'lodash';
+import { last, pick } from 'lodash';
 import {
   RxReplicationState,
   replicateRxCollection,
@@ -59,6 +59,7 @@ export function replicateOrion<RxDocType>({
   batchSize,
   waitForLeadership,
   deletedField = '_deleted',
+  updatedField = 'updated_at',
   updatedParam = 'minUpdatedAt',
   wrap = 'data',
   live = true,
@@ -72,7 +73,7 @@ export function replicateOrion<RxDocType>({
     batchSize,
     modifier: modifier?.pull,
     handler: async (lastPulledCheckpoint: any, batchSize: number) => {
-      const updated = lastPulledCheckpoint?.updatedAt;
+      const updated = lastPulledCheckpoint?.[updatedField];
       const scopes = updated
         ? [{ name: updatedParam, parameters: [updated] }]
         : null;
@@ -90,10 +91,7 @@ export function replicateOrion<RxDocType>({
 
       const lastDoc = last(result);
       const checkpoint = lastDoc
-        ? {
-            [primaryPath]: lastDoc[primaryPath],
-            updatedAt: lastDoc.updatedAt,
-          }
+        ? pick(lastDoc, [primaryPath, updatedField])
         : lastPulledCheckpoint;
 
       return {

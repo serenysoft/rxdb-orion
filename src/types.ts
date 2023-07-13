@@ -61,6 +61,7 @@ export type OrionReplicationOptions<RxDocType> = OrionBaseOptions &
     url: string;
     headers?: RequestHeaders;
     params?: RequestParams;
+    updatedField?: string;
     updatedParam?: string;
     modifier?: Modifier<RxDocType>;
   };
