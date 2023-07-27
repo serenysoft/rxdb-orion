@@ -22,19 +22,19 @@ export class Manager {
       return;
     }
 
-    await Promise.all(
-      this.replications.map(async (replicationState) => {
-        await replicationState.start();
+    for (const replicationState of this.replications) {
+      await replicationState.start();
 
-        if (awaitInit) {
-          await replicationState.awaitInitialReplication();
-        }
+      if (awaitInit) {
+        await replicationState.awaitInitialReplication();
+      }
+    }
 
-        this.intervals.push(
-          setInterval(() => replicationState.reSync(), this.delay)
-        );
-      })
-    );
+    for (const replicationState of this.replications) {
+      this.intervals.push(
+        setInterval(() => replicationState.reSync(), this.delay)
+      );
+    }
   }
 
   async stop(): Promise<void> {

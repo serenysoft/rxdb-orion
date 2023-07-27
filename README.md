@@ -44,7 +44,7 @@ const replicationState = replicateOrion({
 await replicationState.start();
 ```
 
-### Manager
+#### Manager
 
 It is common for an application to require handling multiple replications.
 For this reason, the package includes the `Manager` class to assist in such situations.
