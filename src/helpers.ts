@@ -156,11 +156,7 @@ export async function executePush({
 
     if (!isDeleted) {
       for (const ref of references) {
-        const resources = newDocState[ref];
-
-        if (!resources) {
-          continue;
-        }
+        const resources = newDocState[ref] || [];
 
         await executeRequest(transporter, {
           url: buildUrl([url, data[primaryPath], ref, '/sync']),
