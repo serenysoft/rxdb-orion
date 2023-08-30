@@ -81,7 +81,10 @@ export function replicateOrion<RxDocType>({
       const result = await executePull({
         url,
         collection,
-        headers,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
         params,
         batchSize,
         wrap,
