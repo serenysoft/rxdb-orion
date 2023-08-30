@@ -36,8 +36,11 @@ export async function executeRequest(
   const response = await transporter({
     url: url,
     method: request.method,
-    headers: request.headers,
     params: request.params,
+    headers: {
+      ...request.headers,
+      'Accept': 'application/json',
+    },
     data,
   });
 
