@@ -5,6 +5,10 @@
 
 The Orion replication provides handlers for run replication with Orion REST API as the transportation layer.
 
+## Installation
+
+`npm i rxdb-orion`
+
 ## Usage
 
 The package usage is simple, but there are some important rules to follow
@@ -38,7 +42,6 @@ const replicationState = replicateOrion({
   params: { include: 'roles' },
   collection: users,
   batchSize: 3,
-  transporter,
 });
 
 await replicationState.start();
@@ -63,13 +66,11 @@ const manager = new Manager([
     params: { include: 'roles' },
     collection: users,
     batchSize: 3,
-    transporter,
   }),
   replicateOrion({
     url: 'http://my.fake.api/categories',
     collection: users,
     batchSize: 3,
-    transporter,
   }),
 ], 5000);
 
@@ -88,6 +89,7 @@ Therefore, it is recommended to create a trait for making the necessary model cu
 namespace App\Traits;
 
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 
 trait Syncable {
 
@@ -117,9 +119,9 @@ trait Syncable {
      * @param  \DateTimeInterface  $date
      * @return string
      */
-    protected function serializeDate(DateTimeInterface $date)
+    protected function serializeDate(\DateTimeInterface $date)
     {
-        $instance = $date instanceof DateTimeImmutable
+        $instance = $date instanceof \DateTimeImmutable
             ? CarbonImmutable::instance($date)
             : Carbon::instance($date);
 
