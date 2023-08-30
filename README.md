@@ -69,7 +69,7 @@ const manager = new Manager([
   }),
   replicateOrion({
     url: 'http://my.fake.api/categories',
-    collection: users,
+    collection: categories,
     batchSize: 3,
   }),
 ], 5000);
