@@ -3,10 +3,10 @@ import { initDatabase } from './database';
 import { Manager, replicateOrion } from '../src';
 import { executeFetch } from '../src/helpers';
 import { Transporter } from '../src/types';
-import fetch from 'node-fetch';
-import './replication.mock';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import fetch from 'node-fetch';
+import './replication.mock';
 
 describe('Replication', () => {
   let database: RxDatabase;
