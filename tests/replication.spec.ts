@@ -5,6 +5,8 @@ import { executeFetch } from '../src/helpers';
 import { Transporter } from '../src/types';
 import fetch from 'node-fetch';
 import './replication.mock';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 describe('Replication', () => {
   let database: RxDatabase;
@@ -145,5 +147,33 @@ describe('Replication', () => {
 
     await manager.cancel();
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it.only('Should replicate attachments', async () => {
+    const file = readFileSync(resolve(__dirname, './fixtures/icon.png'));
+    const { users } = database.collections;
+
+    const replicationState = replicateOrion({
+      url: 'http://api.fake.attachments/users',
+      collection: users,
+      batchSize: 3,
+      transporter,
+    });
+
+    await replicationState.start();
+    await replicationState.awaitInitialReplication();
+
+    const user = await users.insert({
+      id: '1',
+      name: 'Bill',
+    });
+
+    user.putAttachment({
+      id: 'icon.png',
+      type: 'image/png',
+      data: file.toString('base64'),
+    });
+
+    await replicationState.awaitInSync();
   });
 });

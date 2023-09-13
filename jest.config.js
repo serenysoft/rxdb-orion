@@ -4,4 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   testPathIgnorePatterns: ['<rootDir>/dist/'],
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
+  moduleNameMapper: {
+    '^axios$': require.resolve('axios'),
+  },
 };

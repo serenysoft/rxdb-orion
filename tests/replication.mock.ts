@@ -58,3 +58,10 @@ nock('http://api.fake.manager')
       { id: '21', name: 'Editor' },
     ],
   });
+
+nock('http://api.fake.attachments')
+  .post('/users/search')
+  .query({ page: 1, limit: 3 })
+  .reply(200, { data: [] })
+  .post('/users')
+  .reply(200, { data: { id: '1', name: 'Bill' } });
