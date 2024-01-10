@@ -133,10 +133,10 @@ export async function executePush({
   primaryPath,
   transporter,
 }: OrionPushExecuteOptions): Promise<[]> {
-  const request: Request = { url, headers };
   const references = Object.keys(extractReferences(collection.schema));
 
   for (const row of rows) {
+    const request: Request = { url, headers };
     const newDocState = row.newDocumentState as any;
     const data = omit<any>(newDocState, [deletedField, ...references]);
 
