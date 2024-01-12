@@ -32,7 +32,7 @@
     "build": "rimraf -rf dist/ && tsc --project tsconfig.dist.json",
     "lint": "eslint \"src/**/*\" \"tests/**/*\"",
     "release": "release-it --only-version",
-    "test": "cross-env NODE_ENV=testing jest --verbose --runInBand --detectOpenHandles",
+    "test": "cross-env NODE_ENV=testing jest --verbose --runInBand",
     "test:ci": "cross-env NODE_ENV=testing jest --verbose --collect-coverage --runInBand --forceExit"
   },
   "engines": {
@@ -42,7 +42,7 @@
     "lodash": "^4.17.21"
   },
   "peerDependencies": {
-    "rxdb": "^14.0.0"
+    "rxdb": "^15.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.22.8",

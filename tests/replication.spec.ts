@@ -96,7 +96,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users',
         method: 'POST',
-        data: { id: '1', name: 'Marx' },
+        data: { id: '1', name: 'Marx', '_attachments': {} },
         headers: {
           'Accept': 'application/json',
         },
@@ -149,7 +149,7 @@ describe('Replication', () => {
     expect(cancel).toHaveBeenCalled();
   });
 
-  it.only('Should replicate attachments', async () => {
+  it('Should replicate attachments', async () => {
     const file = readFileSync(resolve(__dirname, './fixtures/icon.png'));
     const { users } = database.collections;
 

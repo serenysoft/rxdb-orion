@@ -64,4 +64,7 @@ nock('http://api.fake.attachments')
   .query({ page: 1, limit: 3 })
   .reply(200, { data: [] })
   .post('/users')
+  .reply(200, { data: { id: '1', name: 'Bill' } })
+  .put('/users/1')
+  .times(2)
   .reply(200, { data: { id: '1', name: 'Bill' } });
