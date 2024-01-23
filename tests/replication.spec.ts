@@ -44,7 +44,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.pull/users/search',
         method: 'POST',
-        params: { page: 1, limit: 3, include: 'roles' },
+        params: { limit: 3, include: 'roles' },
         headers: {
           'Accept': 'application/json',
         },

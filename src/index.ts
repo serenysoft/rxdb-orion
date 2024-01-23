@@ -72,10 +72,12 @@ export function replicateOrion<RxDocType>({
   const replicationPrimitivesPull = {
     batchSize,
     modifier: modifier?.pull,
-    handler: async (lastPulledCheckpoint: any, batchSize: number) => {
-      const updated = lastPulledCheckpoint?.[updatedField];
-      const scopes = updated
-        ? [{ name: updatedParam, parameters: [updated] }]
+    handler: async (lastCheckpoint: any, batchSize: number) => {
+      const id = lastCheckpoint?.[primaryPath];
+      const updatedAt = lastCheckpoint?.[updatedField];
+
+      const scopes = updatedAt
+        ? [{ name: updatedParam, parameters: [updatedAt, id] }]
         : null;
 
       const result = await executePull({
@@ -92,11 +94,11 @@ export function replicateOrion<RxDocType>({
       const lastDoc = last(result);
       const checkpoint = lastDoc
         ? pick(lastDoc, [primaryPath, updatedField])
-        : lastPulledCheckpoint;
+        : lastCheckpoint;
 
       return {
         documents: result,
-        checkpoint: checkpoint,
+        checkpoint,
       };
     },
   };

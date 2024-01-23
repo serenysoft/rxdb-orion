@@ -132,14 +132,20 @@ trait Syncable {
      * Scope a query to only include models changed after given value.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  int  $value
+     * @param  int  $updatedAt
+     * @param  string  $id
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function scopeMinUpdatedAt($query, $value)
+    public function scopeMinUpdatedAt($query, $updatedAt, $id)
     {
         $datetime = Carbon::createFromTimestamp($value);
 
-        return $query->where('updated_at', '>', $datetime->toDateTimeString());
+        return $query
+            ->where('updated_at', '>', $updatedAt)
+            ->orWhere(function($query) use ($updatedAt, $id) {
+                $query->where('updated_at', $updatedAt)->where('id', '>', $id);
+            })
+            ->orderBy('updated_at');;
     }
 }
 

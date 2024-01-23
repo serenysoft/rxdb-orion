@@ -2,7 +2,7 @@ import nock from 'nock';
 
 nock('http://api.fake.push')
   .post('/users/search')
-  .query({ page: 1, limit: 3 })
+  .query({ limit: 3 })
   .reply(200, { data: [] })
   .post('/users')
   .reply(200, { data: { id: '1', name: 'Jeff' } })
@@ -22,7 +22,7 @@ nock('http://api.fake.push')
 
 nock('http://api.fake.pull')
   .post('/users/search')
-  .query({ page: 1, limit: 3, include: 'roles' })
+  .query({ limit: 3, include: 'roles' })
   .reply(200, {
     data: [
       { id: '10', name: 'Jeff' },
@@ -30,7 +30,7 @@ nock('http://api.fake.pull')
     ],
   })
   .post('/users/search')
-  .query({ page: 1, limit: 3 })
+  .query({ limit: 3 })
   .reply(200, {
     data: [
       { id: '10', name: 'Jeff' },
@@ -38,19 +38,19 @@ nock('http://api.fake.pull')
     ],
   })
   .post('/users/10/roles/search')
-  .query({ page: 1, limit: 3 })
+  .query({ limit: 3 })
   .reply(200, {
     data: [{ id: '100', name: 'Admin' }],
   })
   .post('/users/11/roles/search')
-  .query({ page: 1, limit: 3 })
+  .query({ limit: 3 })
   .reply(200, {
     data: [{ id: '200', name: 'Editor' }],
   });
 
 nock('http://api.fake.manager')
   .post('/roles/search')
-  .query({ page: 1, limit: 3 })
+  .query({ limit: 3 })
   .times(2)
   .reply(200, {
     data: [
@@ -61,7 +61,7 @@ nock('http://api.fake.manager')
 
 nock('http://api.fake.attachments')
   .post('/users/search')
-  .query({ page: 1, limit: 3 })
+  .query({ limit: 3 })
   .reply(200, { data: [] })
   .post('/users')
   .reply(200, { data: { id: '1', name: 'Bill' } })

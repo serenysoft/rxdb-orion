@@ -77,51 +77,41 @@ export async function executePull({
   headers,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
-  let page = 0;
-  let response;
-  const result = [];
+  const request = {
+    url,
+    wrap,
+    headers,
+    data,
+    method: 'POST',
+    action: '/search',
+    params: {
+      ...params,
+      limit: batchSize,
+    },
+  };
 
-  do {
-    const request = {
-      url,
-      wrap,
-      headers,
-      data,
-      method: 'POST',
-      action: '/search',
-      params: {
-        ...params,
-        page: page + 1,
-        limit: batchSize,
-      },
-    };
+  const response = await executeRequest(transporter, request);
 
-    response = await executeRequest(transporter, request);
+  if (collection && response.length) {
+    const primaryPath = collection.schema.primaryPath;
+    const references = extractReferences(collection.schema);
 
-    if (collection && response.length) {
-      const primaryPath = collection.schema.primaryPath;
-      const references = extractReferences(collection.schema);
+    for (const item of response) {
+      for (const [key, value] of Object.entries(references)) {
+        const rows = await executePull({
+          url: `${url}/${item[primaryPath]}/${key}`,
+          transporter,
+          wrap,
+          batchSize,
+        });
 
-      for (const item of response) {
-        for (const [key, value] of Object.entries(references)) {
-          const rows = await executePull({
-            url: `${url}/${item[primaryPath]}/${key}`,
-            transporter,
-            wrap,
-            batchSize,
-          });
-
-          const schema = collection.database.collections[value].schema;
-          item[key] = rows.map((row) => row[schema.primaryPath]);
-        }
+        const schema = collection.database.collections[value].schema;
+        item[key] = rows.map((row) => row[schema.primaryPath]);
       }
     }
+  }
 
-    result.push(...response);
-    page++;
-  } while (response.length === batchSize);
-
-  return result;
+  return response;
 }
 
 export async function executePush({
@@ -160,17 +150,14 @@ export async function executePush({
     if (!isDeleted) {
       for (const ref of references) {
         const resources = newDocState[ref];
-
-        if (!resources) {
-          continue;
+        if (resources?.length) {
+          await executeRequest(transporter, {
+            url: buildUrl([url, data[primaryPath], ref, '/sync']),
+            method: 'PATCH',
+            data: { resources },
+            headers,
+          });
         }
-
-        await executeRequest(transporter, {
-          url: buildUrl([url, data[primaryPath], ref, '/sync']),
-          method: 'PATCH',
-          data: { resources },
-          headers,
-        });
       }
     }
   }
