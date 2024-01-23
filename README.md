@@ -145,7 +145,7 @@ trait Syncable {
             ->orWhere(function($query) use ($updatedAt, $id) {
                 $query->where('updated_at', $updatedAt)->where('id', '>', $id);
             })
-            ->orderBy('updated_at');;
+            ->orderBy('updated_at');
     }
 }
 
