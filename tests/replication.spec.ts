@@ -112,8 +112,10 @@ describe('Replication', () => {
       })
     );
 
+    //the nth 4 is reference to `RESYNC`
+
     expect(transporter).toHaveBeenNthCalledWith(
-      4,
+      5,
       expect.objectContaining({
         url: 'http:/api.fake.push/users/1',
         method: 'DELETE',
