@@ -1,9 +1,13 @@
 import { last, pick } from 'lodash';
+import { Subject } from 'rxjs';
 import {
   RxReplicationState,
   replicateRxCollection,
 } from 'rxdb/plugins/replication';
-import { RxReplicationWriteToMasterRow } from 'rxdb';
+import {
+  RxReplicationPullStreamItem,
+  RxReplicationWriteToMasterRow,
+} from 'rxdb';
 import { OrionReplicationOptions } from './types';
 import { executeFetch, executePull, executePush } from './helpers';
 
@@ -68,10 +72,12 @@ export function replicateOrion<RxDocType>({
   transporter = executeFetch,
 }: OrionReplicationOptions<RxDocType>): RxReplicationState<RxDocType, any> {
   const primaryPath = collection.schema.primaryPath;
+  const pullStream$ = new Subject<RxReplicationPullStreamItem<any, any>>();
 
   const replicationPrimitivesPull = {
     batchSize,
     modifier: modifier?.pull,
+    stream$: pullStream$.asObservable(),
     handler: async (lastCheckpoint: any, batchSize: number) => {
       const id = lastCheckpoint?.[primaryPath];
       const updatedAt = lastCheckpoint?.[updatedField];
@@ -106,10 +112,10 @@ export function replicateOrion<RxDocType>({
   const replicationPrimitivesPush = {
     batchSize,
     modifier: modifier?.push,
-    handler: (
+    handler: async (
       rows: RxReplicationWriteToMasterRow<RxDocType>[]
     ): Promise<[]> => {
-      return executePush({
+      const result = await executePush({
         url,
         rows,
         headers,
@@ -118,6 +124,9 @@ export function replicateOrion<RxDocType>({
         primaryPath,
         transporter,
       });
+
+      pullStream$.next('RESYNC');
+      return result;
     },
   };
 
