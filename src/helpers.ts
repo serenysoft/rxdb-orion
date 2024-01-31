@@ -75,6 +75,7 @@ export async function executePull({
   data,
   wrap,
   headers,
+  deletedField,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
   const request = {
@@ -82,6 +83,7 @@ export async function executePull({
     wrap,
     headers,
     data,
+    deletedField,
     method: 'POST',
     action: '/search',
     params: {
@@ -98,16 +100,19 @@ export async function executePull({
     const references = extractReferences(collection.schema);
 
     for (const item of response) {
-      for (const [key, value] of Object.entries(references)) {
-        const rows = await executePull({
-          url: `${url}/${item[primaryPath]}/${key}`,
-          transporter,
-          wrap,
-          batchSize,
-        });
+      if (!item[deletedField]) {
+        for (const [key, value] of Object.entries(references)) {
+          const rows = await executePull({
+            url: `${url}/${item[primaryPath]}/${key}`,
+            transporter,
+            wrap,
+            batchSize,
+            deletedField,
+          });
 
-        const schema = collection.database.collections[value].schema;
-        item[key] = rows.map((row) => row[schema.primaryPath]);
+          const schema = collection.database.collections[value].schema;
+          item[key] = rows.map((row) => row[schema.primaryPath]);
+        }
       }
     }
   }

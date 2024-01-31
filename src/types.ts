@@ -39,6 +39,7 @@ export type OrionBaseOptions = {
 export type OrionBaseExecuteOptions = OrionBaseOptions & {
   url?: string;
   headers?: RequestHeaders;
+  deletedField: string;
   collection?: RxCollection<any>;
 };
 
@@ -49,7 +50,6 @@ export type OrionPullExecuteOptions = OrionBaseExecuteOptions & {
 
 export type OrionPushExecuteOptions = OrionBaseExecuteOptions & {
   rows: RxReplicationWriteToMasterRow<any>[];
-  deletedField: string;
   primaryPath: string;
 };
 

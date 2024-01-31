@@ -93,6 +93,7 @@ export function replicateOrion<RxDocType>({
         params,
         batchSize,
         wrap,
+        deletedField,
         transporter,
         data: { scopes },
       });
