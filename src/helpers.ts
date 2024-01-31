@@ -85,8 +85,9 @@ export async function executePull({
     method: 'POST',
     action: '/search',
     params: {
-      ...params,
+      with_trashed: true,
       limit: batchSize,
+      ...params,
     },
   };
 
