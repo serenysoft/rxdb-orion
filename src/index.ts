@@ -26,13 +26,14 @@ export class Manager {
       return;
     }
 
-    for (const replicationState of this.replications) {
-      await replicationState.start();
-
-      if (awaitInit) {
-        await replicationState.awaitInitialReplication();
-      }
-    }
+    await Promise.all(
+      this.replications.map(async (replicationState) => {
+        await replicationState.start();
+        if (awaitInit) {
+          await replicationState.awaitInitialReplication();
+        }
+      })
+    );
 
     for (const replicationState of this.replications) {
       this.intervals.push(
