@@ -2,7 +2,7 @@
   "name": "rxdb-orion",
   "description": "RxDB replication for Laravel Orion",
   "readmeFilename": "README.md",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "license": "MIT",
   "keywords": [
     "laravel",
