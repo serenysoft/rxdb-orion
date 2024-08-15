@@ -99,22 +99,24 @@ export async function executePull({
     const primaryPath = collection.schema.primaryPath;
     const references = extractReferences(collection.schema);
 
-    for (const item of response) {
-      if (!item[deletedField]) {
-        for (const [key, value] of Object.entries(references)) {
-          const rows = await executePull({
-            url: `${url}/${item[primaryPath]}/${key}`,
-            transporter,
-            wrap,
-            batchSize,
-            deletedField,
-          });
+    await Promise.all(
+      response.map(async (item: any) => {
+        if (!item[deletedField]) {
+          for (const [key, value] of Object.entries(references)) {
+            const rows = await executePull({
+              url: `${url}/${item[primaryPath]}/${key}`,
+              transporter,
+              wrap,
+              batchSize,
+              deletedField,
+            });
 
-          const schema = collection.database.collections[value].schema;
-          item[key] = rows.map((row) => row[schema.primaryPath]);
+            const { schema } = collection.database.collections[value];
+            item[key] = rows.map((row) => row[schema.primaryPath]);
+          }
         }
-      }
-    }
+      })
+    );
   }
 
   return response;
