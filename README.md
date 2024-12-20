@@ -88,9 +88,6 @@ Therefore, it is recommended to create a trait for making the necessary model cu
 
 namespace App\Traits;
 
-use Carbon\Carbon;
-use Carbon\CarbonImmutable;
-
 trait Syncable {
 
     /**
