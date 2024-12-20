@@ -111,22 +111,7 @@ trait Syncable {
     protected function getDeletedAttribute()
     {
         return $this->deleted_at !== null;
-    }
-
-    /**
-     * Cast a date for timestamp
-     *
-     * @param  \DateTimeInterface  $date
-     * @return string
-     */
-    protected function serializeDate(\DateTimeInterface $date)
-    {
-        $instance = $date instanceof \DateTimeImmutable
-            ? CarbonImmutable::instance($date)
-            : Carbon::instance($date);
-
-        return $instance->timestamp;
-    }
+    }   
 
     /**
      * Scope a query to only include models changed after given value.
