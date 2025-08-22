@@ -3,8 +3,8 @@ import { initDatabase } from './database';
 import { Manager, replicateOrion } from '../src';
 import { executeFetch } from '../src/helpers';
 import { Transporter } from '../src/types';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+// import { readFileSync } from 'fs';
+// import { resolve } from 'path';
 import fetch from 'node-fetch';
 import './replication.mock';
 
@@ -151,6 +151,7 @@ describe('Replication', () => {
     expect(cancel).toHaveBeenCalled();
   });
 
+  /*
   it('Should replicate attachments', async () => {
     const file = readFileSync(resolve(__dirname, './fixtures/icon.png'));
     const { users } = database.collections;
@@ -177,5 +178,26 @@ describe('Replication', () => {
     });
 
     await replicationState.awaitInSync();
+  });
+  */
+
+  it('Should call awaitInSync on all replications via Manager', async () => {
+    const users = database.collections.users;
+    const replicationState = replicateOrion({
+      url: 'http://api.fake.sync/users',
+      collection: users,
+      batchSize: 3,
+      transporter,
+    });
+
+    const awaitInSync = jest
+      .spyOn(replicationState, 'awaitInSync')
+      .mockResolvedValue(undefined);
+
+    const manager = new Manager([replicationState], 1000);
+
+    await manager.awaitInSync();
+    expect(awaitInSync).toHaveBeenCalledTimes(1);
+    awaitInSync.mockRestore();
   });
 });

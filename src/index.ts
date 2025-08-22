@@ -53,6 +53,14 @@ export class Manager {
       this.replications.map((replicationState) => replicationState.cancel())
     );
   }
+
+  async awaitInSync(): Promise<void> {
+    await Promise.all(
+      this.replications.map((replicationState) =>
+        replicationState.awaitInSync()
+      )
+    );
+  }
 }
 
 export function replicateOrion<RxDocType>({

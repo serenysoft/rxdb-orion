@@ -2,7 +2,7 @@ import nock from 'nock';
 
 nock('http://api.fake.push')
   .post('/users/search')
-  .times(2)
+  .times(3)
   .query({ limit: 3, with_trashed: true })
   .reply(200, { data: [] })
   .post('/users')

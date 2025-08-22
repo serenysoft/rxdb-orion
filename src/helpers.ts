@@ -63,8 +63,13 @@ export async function executeFetch(request: Request) {
     params.body = JSON.stringify(data);
   }
 
-  const response = await fetch(url, params);
-  return await response.json();
+  try {
+    const response = await fetch(url, params);
+    return await response.json();
+  } catch (err) {
+    console.error('Fetch error:', err);
+    throw err;
+  }
 }
 
 export async function executePull({
