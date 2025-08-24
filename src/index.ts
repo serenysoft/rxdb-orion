@@ -88,12 +88,15 @@ export function replicateOrion<RxDocType>({
     modifier: modifier?.pull,
     stream$: pullStream$.asObservable(),
     handler: async (lastCheckpoint: any, batchSize: number) => {
-      const id = lastCheckpoint?.[primaryPath];
-      const updatedAt = lastCheckpoint?.[updatedField];
+      const data = {} as any;
 
-      const scopes = updatedAt
-        ? [{ name: updatedParam, parameters: [updatedAt, id] }]
-        : null;
+      if (!lastCheckpoint) {
+        data.sort = [{ field: updatedField, direction: 'asc' }];
+      } else {
+        const id = lastCheckpoint[primaryPath];
+        const updatedAt = lastCheckpoint[updatedField];
+        data.scopes = [{ name: updatedParam, parameters: [updatedAt, id] }];
+      }
 
       const result = await executePull({
         url,
@@ -104,7 +107,7 @@ export function replicateOrion<RxDocType>({
         wrap,
         deletedField,
         transporter,
-        data: { scopes },
+        data,
       });
 
       const lastDoc = last(result);

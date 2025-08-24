@@ -77,7 +77,36 @@ const manager = new Manager([
 await manager.start();
 ```
 
-### Backend
+### Database
+
+> **Important:**
+> To ensure correct replication, define your `created_at`, `updated_at`, and `deleted_at` fields as `timestamp(6)` in your database migrations. This allows storage of milliseconds, which is required for accurate checkpointing and synchronization.
+
+```php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateCategoriesTable extends Migration
+{
+  public function up()
+  {
+    Schema::create('categories', function (Blueprint $table) {
+      $table->uuid('id')->primary();
+      $table->string('name');
+      $table->timestamps(6);
+      $table->softDeletes(precision: 6);
+    });
+  }
+
+  public function down()
+  {
+    Schema::dropIfExists('categories');
+  }
+}
+```
+
+### Model
 
 The package uses a [Scope](https://tailflow.github.io/laravel-orion-docs/v2.x/guide/search.html#filtering) to request all documents that have been written after the given checkpoint.
 
@@ -101,6 +130,21 @@ trait Syncable {
     }
 
     /**
+     * Prepare a date for array / JSON serialization.
+     *
+     * @param  \DateTimeInterface  $date
+     * @return string
+     */
+    protected function serializeDate(DateTimeInterface $date)
+    {
+        $instance = $date instanceof DateTimeImmutable
+            ? CarbonImmutable::instance($date)
+            : Carbon::instance($date);
+
+        return $instance->toDateTimeString('millisecond');
+    }
+
+    /**
      * Determine if model is deleted
      *
      * @return boolean
@@ -108,7 +152,7 @@ trait Syncable {
     protected function getDeletedAttribute()
     {
         return $this->deleted_at !== null;
-    }   
+    }
 
     /**
      * Scope a query to only include models changed after given value.
@@ -118,17 +162,16 @@ trait Syncable {
      * @param  string  $id
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function scopeMinUpdatedAt($query, $updatedAt, $id)
-    {
-        $datetime = Carbon::createFromTimestamp($value);
-
-        return $query
-            ->where('updated_at', '>', $updatedAt)
-            ->orWhere(function($query) use ($updatedAt, $id) {
-                $query->where('updated_at', $updatedAt)->where('id', '>', $id);
-            })
-            ->orderBy('updated_at');
-    }
+      public function scopeMinUpdatedAt(Builder $query, string $updatedAt, ?string $id = null): Builder
+      {
+          return $query->where('updated_at', '>', $updatedAt)
+              ->when($id, fn($query) =>
+                  $query->orWhere(function($query) use ($updatedAt, $id) {
+                      $query->where('updated_at', $updatedAt)->where('id', '>', $id);
+                  })
+              )
+              ->orderBy('updated_at');
+      }
 }
 
 ```
