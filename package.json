@@ -42,7 +42,7 @@
     "lodash": "^4.17.21"
   },
   "peerDependencies": {
-    "rxdb": "^15.0.0"
+    "rxdb": "^16.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.22.8",

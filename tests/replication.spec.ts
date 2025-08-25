@@ -22,7 +22,7 @@ describe('Replication', () => {
   });
 
   afterEach(async () => {
-    await database.destroy();
+    await database.close();
   });
 
   it('Should pull documents from remote api', async () => {
