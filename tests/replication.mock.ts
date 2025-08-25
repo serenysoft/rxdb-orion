@@ -3,7 +3,7 @@ import nock from 'nock';
 nock('http://api.fake.push')
   .post('/users/search')
   .times(3)
-  .query({ limit: 3, with_trashed: true })
+  .query({ limit: 3, include: 'roles', with_trashed: true })
   .reply(200, { data: [] })
   .post('/users')
   .reply(200, { data: { id: '1', name: 'Jeff' } })
@@ -26,8 +26,8 @@ nock('http://api.fake.pull')
   .query({ limit: 3, include: 'roles', with_trashed: true })
   .reply(200, {
     data: [
-      { id: '10', name: 'Jeff' },
-      { id: '11', name: 'Mark' },
+      { id: '10', name: 'Jeff', 'roles': ['100'] },
+      { id: '11', name: 'Mark', 'roles': ['200'] },
     ],
   })
   .post('/users/search')

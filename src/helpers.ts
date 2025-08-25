@@ -5,7 +5,7 @@ import {
   Request,
   Transporter,
 } from './types';
-import { compact, get, isEmpty, isNil, omit, omitBy } from 'lodash';
+import { compact, get, isEmpty, isNil, omit, omitBy, snakeCase } from 'lodash';
 
 export function buildUrl(parts: (number | string)[]): string {
   return compact(parts)
@@ -83,6 +83,9 @@ export async function executePull({
   deletedField,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
+  const references = extractReferences(collection.schema);
+  const keys = Object.keys(references);
+
   const request = {
     url,
     wrap,
@@ -96,27 +99,28 @@ export async function executePull({
       limit: batchSize,
       ...params,
     },
-  };
+  } as any;
+
+  if (keys.length) {
+    request.params.include = keys.join(',');
+  }
 
   const response = await executeRequest(transporter, request);
 
   if (collection && response.length) {
-    const primaryPath = collection.schema.primaryPath;
-    const references = extractReferences(collection.schema);
+    return response;
+  }
 
-    for (const item of response) {
-      if (!item[deletedField]) {
-        for (const [key, value] of Object.entries(references)) {
-          const rows = await executePull({
-            url: `${url}/${item[primaryPath]}/${key}`,
-            transporter,
-            wrap,
-            batchSize,
-            deletedField,
-          });
+  for (const item of response) {
+    if (!item[deletedField]) {
+      for (const [key, value] of Object.entries(references)) {
+        const property = snakeCase(value);
+        const reference = collection.database.collections[value];
 
-          const schema = collection.database.collections[value].schema;
-          item[key] = rows.map((row) => row[schema.primaryPath]);
+        if (reference) {
+          item[key] = item[property].map(
+            (row: any) => row[reference.schema.primaryPath]
+          );
         }
       }
     }
