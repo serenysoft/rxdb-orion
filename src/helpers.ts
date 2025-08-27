@@ -108,17 +108,13 @@ export async function executePull({
 
   const response = await executeRequest(transporter, request);
 
-  if (collection && response.length) {
-    return response;
-  }
-
   for (const item of response) {
     if (!item[deletedField]) {
       for (const [key, value] of Object.entries(references)) {
         const property = snakeCase(value);
         const reference = collection.database.collections[value];
 
-        if (reference) {
+        if (reference && item[property]) {
           item[key] = item[property].map(
             (row: any) => row[reference.schema.primaryPath]
           );
