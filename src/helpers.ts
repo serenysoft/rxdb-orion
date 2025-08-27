@@ -81,10 +81,11 @@ export async function executePull({
   wrap,
   headers,
   deletedField,
+  exclude,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
   const references = extractReferences(collection.schema);
-  const keys = Object.keys(references);
+  const keys = Object.keys(references).filter((key) => !exclude.includes(key));
 
   const request = {
     url,
@@ -136,6 +137,7 @@ export async function executePush({
   collection,
   deletedField,
   primaryPath,
+  exclude,
   transporter,
 }: OrionPushExecuteOptions): Promise<[]> {
   const references = Object.keys(extractReferences(collection.schema));
@@ -164,6 +166,10 @@ export async function executePush({
 
     if (!isDeleted) {
       for (const ref of references) {
+        if (exclude.includes(ref)) {
+          continue;
+        }
+
         const resources = newDocState[ref];
         if (resources?.length) {
           await executeRequest(transporter, {

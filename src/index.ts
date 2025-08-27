@@ -79,6 +79,10 @@ export function replicateOrion<RxDocType>({
   retryTime = 1000 * 5, // in ms
   autoStart = false,
   transporter = executeFetch,
+  exclude = {
+    pull: [],
+    push: [],
+  },
 }: OrionReplicationOptions<RxDocType>): RxReplicationState<RxDocType, any> {
   const primaryPath = collection.schema.primaryPath;
   const pullStream$ = new Subject<RxReplicationPullStreamItem<any, any>>();
@@ -107,6 +111,7 @@ export function replicateOrion<RxDocType>({
         wrap,
         deletedField,
         transporter,
+        exclude: exclude.pull,
         data,
       });
 
@@ -135,6 +140,7 @@ export function replicateOrion<RxDocType>({
         collection,
         deletedField,
         primaryPath,
+        exclude: exclude.push,
         transporter,
       });
 

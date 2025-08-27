@@ -30,6 +30,11 @@ export interface Modifier<RxDocType> {
   push?: (data: WithDeleted<RxDocType>) => MaybePromise<any>;
 }
 
+export type ExcludeOptions = {
+  pull?: string[];
+  push?: string[];
+};
+
 export type OrionBaseOptions = {
   wrap?: string;
   batchSize?: number;
@@ -41,6 +46,7 @@ export type OrionBaseExecuteOptions = OrionBaseOptions & {
   headers?: RequestHeaders;
   deletedField: string;
   collection?: RxCollection<any>;
+  exclude: string[];
 };
 
 export type OrionPullExecuteOptions = OrionBaseExecuteOptions & {
@@ -64,4 +70,5 @@ export type OrionReplicationOptions<RxDocType> = OrionBaseOptions &
     updatedField?: string;
     updatedParam?: string;
     modifier?: Modifier<RxDocType>;
+    exclude?: ExcludeOptions;
   };

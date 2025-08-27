@@ -19,7 +19,13 @@ nock('http://api.fake.push')
       detached: [],
       updated: [],
     },
-  ]);
+  ])
+  .post('/users-exclude/search')
+  .times(2)
+  .query({ limit: 100, with_trashed: true })
+  .reply(200, { data: [] })
+  .post('/users-exclude')
+  .reply(200, { data: { id: 'EX-001', name: 'Marx' } });
 
 nock('http://api.fake.pull')
   .post('/users/search')

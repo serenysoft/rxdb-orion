@@ -96,7 +96,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users',
         method: 'POST',
-        data: { id: '1', name: 'Marx', '_attachments': {} },
+        data: { id: '1', name: 'Marx', _attachments: {} },
         headers: {
           'Accept': 'application/json',
         },
@@ -119,6 +119,54 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users/1',
         method: 'DELETE',
+      })
+    );
+  });
+
+  it('Should push documents to remote api excluding relations', async () => {
+    const users = database.collections.users;
+
+    const replicationState = replicateOrion({
+      url: 'http://api.fake.push/users-exclude',
+      collection: database.collections.users,
+      transporter,
+      exclude: {
+        pull: ['roles'],
+        push: ['roles'],
+      },
+    });
+
+    await replicationState.start();
+    await replicationState.awaitInitialReplication();
+
+    await users.insert({
+      id: 'EX-001',
+      name: 'Marx',
+    });
+
+    await replicationState.awaitInSync();
+
+    expect(transporter).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        url: 'http:/api.fake.push/users-exclude/search',
+        method: 'POST',
+      })
+    );
+
+    expect(transporter).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        url: 'http:/api.fake.push/users-exclude',
+        method: 'POST',
+        data: {
+          id: 'EX-001',
+          name: 'Marx',
+          _attachments: {},
+        },
+        headers: {
+          'Accept': 'application/json',
+        },
       })
     );
   });
