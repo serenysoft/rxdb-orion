@@ -29,7 +29,7 @@ describe('Replication', () => {
     const users = database.collections.users;
     const replicationState = replicateOrion({
       url: 'http://api.fake.pull/users',
-      params: { include: 'roles' },
+      params: { include: 'roles,tags' },
       collection: users,
       batchSize: 3,
       transporter,
@@ -44,7 +44,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.pull/users/search',
         method: 'POST',
-        params: { limit: 3, include: 'roles', with_trashed: true },
+        params: { limit: 3, include: 'roles,tags', with_trashed: true },
         headers: {
           'Accept': 'application/json',
         },
@@ -57,8 +57,8 @@ describe('Replication', () => {
 
     expect(results).toEqual(
       expect.objectContaining([
-        { id: '10', name: 'Jeff', roles: ['100'] },
-        { id: '11', name: 'Mark', roles: ['200'] },
+        { id: '10', name: 'Jeff', roles: ['100'], tags: ['300', '301'] },
+        { id: '11', name: 'Mark', roles: ['200'], tags: [] },
       ])
     );
   });

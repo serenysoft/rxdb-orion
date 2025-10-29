@@ -29,11 +29,24 @@ nock('http://api.fake.push')
 
 nock('http://api.fake.pull')
   .post('/users/search')
-  .query({ limit: 3, include: 'roles', with_trashed: true })
+  .query({ limit: 3, include: 'roles,tags', with_trashed: true })
   .reply(200, {
     data: [
-      { id: '10', name: 'Jeff', 'roles': ['100'] },
-      { id: '11', name: 'Mark', 'roles': ['200'] },
+      {
+        id: '10',
+        name: 'Jeff',
+        roles: ['100'],
+        tags: [
+          { id: '300', description: 'tag1' },
+          { id: '301', description: 'tag2' },
+        ],
+      },
+      {
+        id: '11',
+        name: 'Mark',
+        roles: ['200'],
+        tags: [],
+      },
     ],
   })
   .post('/users/search')

@@ -5,7 +5,16 @@ import {
   Request,
   Transporter,
 } from './types';
-import { compact, get, isEmpty, isNil, omit, omitBy, snakeCase } from 'lodash';
+import {
+  compact,
+  get,
+  isEmpty,
+  isNil,
+  isPlainObject,
+  omit,
+  omitBy,
+  snakeCase,
+} from 'lodash';
 
 export function buildUrl(parts: (number | string)[]): string {
   return compact(parts)
@@ -115,8 +124,8 @@ export async function executePull({
         const reference = collection.database.collections[value];
 
         if (reference && item[property]) {
-          item[key] = item[property].map(
-            (row: any) => row[reference.schema.primaryPath]
+          item[key] = item[property].map((row: any) =>
+            isPlainObject(row) ? row[reference.schema.primaryPath] : row
           );
         }
       }

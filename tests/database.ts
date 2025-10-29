@@ -4,6 +4,22 @@ import { getRxStorageMemory } from 'rxdb/plugins/storage-memory';
 
 addRxPlugin(RxDBAttachmentsPlugin);
 
+export const tagsSchema = {
+  version: 0,
+  description: 'The tags schema',
+  primaryKey: 'id',
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      maxLength: 100,
+    },
+    description: {
+      type: 'string',
+    },
+  },
+};
+
 export const roleSchema = {
   version: 0,
   description: 'The role schema',
@@ -40,6 +56,13 @@ export const userSchema = {
         type: 'string',
       },
     },
+    tags: {
+      type: 'array',
+      ref: 'tags',
+      items: {
+        type: 'string',
+      },
+    },
   },
   attachments: {
     encrypted: false,
@@ -58,6 +81,9 @@ export async function initDatabase() {
     },
     roles: {
       schema: roleSchema,
+    },
+    tags: {
+      schema: tagsSchema,
     },
   });
 
