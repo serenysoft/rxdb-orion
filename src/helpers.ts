@@ -1,4 +1,4 @@
-import { RxSchema } from 'rxdb';
+import { RxCollection } from 'rxdb';
 import {
   OrionPullExecuteOptions,
   OrionPushExecuteOptions,
@@ -22,12 +22,20 @@ export function buildUrl(parts: (number | string)[]): string {
     .replace(/\/{2,}/g, '/');
 }
 
-export function extractReferences(schema: RxSchema): Record<string, string> {
+export function extractReferences(
+  collection: RxCollection
+): Record<string, string> {
   const result: Record<string, string> = {};
-  const entries = Object.entries(schema.jsonSchema.properties);
+  const entries = Object.entries(collection.schema.jsonSchema.properties);
 
   for (const [key, value] of entries) {
     if (value.type === 'array' && value.ref) {
+      if (!collection.database.collections[value.ref]) {
+        throw new Error(
+          `Invalid ref '${value.ref}' for property '${key}' not found`
+        );
+      }
+
       result[key] = value.ref;
     }
   }
@@ -93,7 +101,7 @@ export async function executePull({
   exclude,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
-  const references = extractReferences(collection.schema);
+  const references = extractReferences(collection);
   const keys = Object.keys(references).filter((key) => !exclude.includes(key));
 
   const request = {
@@ -145,7 +153,7 @@ export async function executePush({
   exclude,
   transporter,
 }: OrionPushExecuteOptions): Promise<[]> {
-  const references = Object.keys(extractReferences(collection.schema));
+  const references = Object.keys(extractReferences(collection));
 
   for (const row of rows) {
     const request: Request = { url, headers };
