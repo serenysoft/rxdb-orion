@@ -186,7 +186,7 @@ describe('Replication', () => {
     const manager = new Manager([userReplicationState], 1000);
 
     await manager.start();
-    await manager.awaitInitialSyncing();
+    await manager.awaitInitialSync();
 
     expect(start).toHaveBeenCalledTimes(1);
 

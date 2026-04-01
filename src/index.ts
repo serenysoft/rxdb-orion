@@ -61,7 +61,7 @@ export class Manager {
     );
   }
 
-  async awaitInitialSyncing(): Promise<void> {
+  async awaitInitialSync(): Promise<void> {
     await Promise.all(
       this.replications.map(async (replicationState) => {
         await replicationState.awaitInitialReplication();
