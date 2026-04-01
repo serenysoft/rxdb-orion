@@ -14,6 +14,8 @@ import { executeFetch, executePull, executePush } from './helpers';
 export const ORION_REPLICATION_PREFIX = 'orion-';
 
 export class Manager {
+  private initialSyncing = false;
+
   constructor(
     private replications: RxReplicationState<any, any>[],
     private delay: number = 10000
@@ -21,7 +23,7 @@ export class Manager {
 
   private intervals: NodeJS.Timer[] = [];
 
-  async start(awaitInit = true): Promise<void> {
+  async start(): Promise<void> {
     if (this.intervals.length) {
       return;
     }
@@ -29,9 +31,6 @@ export class Manager {
     await Promise.all(
       this.replications.map(async (replicationState) => {
         await replicationState.start();
-        if (awaitInit) {
-          await replicationState.awaitInitialReplication();
-        }
       })
     );
 
@@ -59,6 +58,14 @@ export class Manager {
       this.replications.map((replicationState) =>
         replicationState.awaitInSync()
       )
+    );
+  }
+
+  async awaitInitialSyncing(): Promise<void> {
+    await Promise.all(
+      this.replications.map(async (replicationState) => {
+        await replicationState.awaitInitialReplication();
+      })
     );
   }
 }
