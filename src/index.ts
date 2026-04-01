@@ -14,14 +14,13 @@ import { executeFetch, executePull, executePush } from './helpers';
 export const ORION_REPLICATION_PREFIX = 'orion-';
 
 export class Manager {
-  private initialSyncing = false;
+  private intervals: NodeJS.Timer[] = [];
+  private initialSyncFinished: boolean = false;
 
   constructor(
     private replications: RxReplicationState<any, any>[],
     private delay: number = 10000
   ) {}
-
-  private intervals: NodeJS.Timer[] = [];
 
   async start(): Promise<void> {
     if (this.intervals.length) {
@@ -62,11 +61,24 @@ export class Manager {
   }
 
   async awaitInitialSync(): Promise<void> {
-    await Promise.all(
-      this.replications.map(async (replicationState) => {
-        await replicationState.awaitInitialReplication();
-      })
-    );
+    if (this.initialSyncFinished) {
+      return;
+    }
+
+    this.initialSyncFinished = false;
+    try {
+      await Promise.all(
+        this.replications.map(async (replicationState) => {
+          await replicationState.awaitInitialReplication();
+        })
+      );
+    } finally {
+      this.initialSyncFinished = true;
+    }
+  }
+
+  isInitialSyncFinished(): boolean {
+    return this.initialSyncFinished;
   }
 }
 

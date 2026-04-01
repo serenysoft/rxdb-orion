@@ -1,4 +1,5 @@
 import { RxDatabase } from 'rxdb';
+import { RxReplicationState } from 'rxdb/plugins/replication';
 import { initDatabase } from './database';
 import { Manager, replicateOrion } from '../src';
 import { executeFetch } from '../src/helpers';
@@ -11,6 +12,7 @@ import './replication.mock';
 describe('Replication', () => {
   let database: RxDatabase;
   let transporter: Transporter;
+  let replicationState: RxReplicationState<any, any>;
 
   beforeAll(() => {
     globalThis.fetch = fetch as any;
@@ -27,7 +29,8 @@ describe('Replication', () => {
 
   it('Should pull documents from remote api', async () => {
     const users = database.collections.users;
-    const replicationState = replicateOrion({
+    replicationState = replicateOrion({
+      waitForLeadership: false,
       url: 'http://api.fake.pull/users',
       params: { include: 'roles,tags' },
       collection: users,
@@ -66,7 +69,8 @@ describe('Replication', () => {
   it('Should push documents to remote api', async () => {
     const users = database.collections.users;
 
-    const replicationState = replicateOrion({
+    replicationState = replicateOrion({
+      waitForLeadership: false,
       url: 'http://api.fake.push/users',
       collection: database.collections.users,
       batchSize: 3,
@@ -126,7 +130,8 @@ describe('Replication', () => {
   it('Should push documents to remote api excluding relations', async () => {
     const users = database.collections.users;
 
-    const replicationState = replicateOrion({
+    replicationState = replicateOrion({
+      waitForLeadership: false,
       url: 'http://api.fake.push/users-exclude',
       collection: database.collections.users,
       transporter,
@@ -178,6 +183,7 @@ describe('Replication', () => {
       url: 'http://api.fake.manager/roles',
       collection: roles,
       batchSize: 3,
+      waitForLeadership: false,
     });
 
     const start = jest.spyOn(userReplicationState, 'start');
@@ -186,7 +192,12 @@ describe('Replication', () => {
     const manager = new Manager([userReplicationState], 1000);
 
     await manager.start();
+
+    expect(manager.isInitialSyncFinished()).toBe(false);
+
     await manager.awaitInitialSync();
+
+    expect(manager.isInitialSyncFinished()).toBe(true);
 
     expect(start).toHaveBeenCalledTimes(1);
 
@@ -231,7 +242,8 @@ describe('Replication', () => {
 
   it('Should call awaitInSync on all replications via Manager', async () => {
     const users = database.collections.users;
-    const replicationState = replicateOrion({
+    replicationState = replicateOrion({
+      waitForLeadership: false,
       url: 'http://api.fake.sync/users',
       collection: users,
       batchSize: 3,
