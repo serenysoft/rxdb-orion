@@ -66,6 +66,41 @@ nock('http://api.fake.pull')
   .query({ limit: 3, with_trashed: true })
   .reply(200, {
     data: [{ id: '200', name: 'Editor' }],
+  })
+  .post('/members-ref/search')
+  .query({ limit: 3, include: 'userRoles', with_trashed: true })
+  .reply(200, {
+    data: [
+      {
+        id: 'REL-001',
+        name: 'Alice',
+        roles: [{ id: '100' }, { id: '200' }],
+      },
+    ],
+  })
+  .post('/members-key/search')
+  .query({ limit: 3, include: 'userRoles', with_trashed: true })
+  .reply(200, {
+    data: [
+      {
+        id: 'REL-002',
+        name: 'Bob',
+        user_roles: [{ id: '100' }, { id: '200' }],
+      },
+    ],
+  })
+  .post('/users-with-primary-tag/search')
+  .query({ limit: 3, include: 'roles,tags', with_trashed: true })
+  .reply(200, {
+    data: [
+      {
+        id: 'USR-TAG-1',
+        name: 'Owner',
+        primaryTag: '300',
+        roles: [{ id: '100' }],
+        tags: [],
+      },
+    ],
   });
 
 nock('http://api.fake.manager')

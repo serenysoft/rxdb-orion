@@ -22,7 +22,7 @@ export function buildUrl(parts: (number | string)[]): string {
     .replace(/\/{2,}/g, '/');
 }
 
-export function extractReferences(
+export function extractArrayReferences(
   collection: RxCollection
 ): Record<string, string> {
   const result: Record<string, string> = {};
@@ -101,7 +101,7 @@ export async function executePull({
   exclude,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
-  const references = extractReferences(collection);
+  const references = extractArrayReferences(collection);
   const keys = Object.keys(references).filter((key) => !exclude.includes(key));
 
   const request = {
@@ -128,13 +128,17 @@ export async function executePull({
   for (const item of response) {
     if (!item[deletedField]) {
       for (const [key, value] of Object.entries(references)) {
-        const property = snakeCase(value);
+        const valueProperty = snakeCase(value);
+        const keyProperty = snakeCase(key);
+
         const reference = collection.database.collections[value];
+        const elements = item[valueProperty] || item[keyProperty];
 
-        if (reference && item[property]) {
-          const elements = item[property];
-          delete item[property];
+        item[key] = [];
+        delete item[valueProperty];
+        delete item[keyProperty];
 
+        if (reference && elements?.length) {
           item[key] = elements.map((row: any) =>
             isPlainObject(row) ? row[reference.schema.primaryPath] : row
           );
@@ -156,7 +160,7 @@ export async function executePush({
   exclude,
   transporter,
 }: OrionPushExecuteOptions): Promise<[]> {
-  const references = Object.keys(extractReferences(collection));
+  const references = Object.keys(extractArrayReferences(collection));
 
   for (const row of rows) {
     const request: Request = { url, headers };

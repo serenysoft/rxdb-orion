@@ -2,7 +2,7 @@ import { RxDatabase } from 'rxdb';
 import { RxReplicationState } from 'rxdb/plugins/replication';
 import { initDatabase } from './database';
 import { Manager, replicateOrion } from '../src';
-import { executeFetch } from '../src/helpers';
+import { executeFetch, executePull, extractArrayReferences } from '../src/helpers';
 import { Transporter } from '../src/types';
 // import { readFileSync } from 'fs';
 // import { resolve } from 'path';
@@ -62,6 +62,104 @@ describe('Replication', () => {
       expect.objectContaining([
         { id: '10', name: 'Jeff', roles: ['100'], tags: ['300', '301'] },
         { id: '11', name: 'Mark', roles: ['200'], tags: [] },
+      ])
+    );
+  });
+
+  it('Should map pull references from snake_case ref property', async () => {
+    const members = database.collections.members;
+
+    const result = await executePull({
+      collection: members,
+      url: 'http://api.fake.pull/members-ref',
+      batchSize: 3,
+      deletedField: '_deleted',
+      exclude: [],
+      wrap: 'data',
+      transporter,
+    });
+
+    expect(result).toEqual([
+      {
+        id: 'REL-001',
+        name: 'Alice',
+        userRoles: ['100', '200'],
+      },
+    ]);
+  });
+
+  it('Should map pull references from snake_case key property', async () => {
+    const members = database.collections.members;
+
+    const result = await executePull({
+      collection: members,
+      url: 'http://api.fake.pull/members-key',
+      batchSize: 3,
+      deletedField: '_deleted',
+      exclude: [],
+      wrap: 'data',
+      transporter,
+    });
+
+    expect(result).toEqual([
+      {
+        id: 'REL-002',
+        name: 'Bob',
+        userRoles: ['100', '200'],
+      },
+    ]);
+  });
+
+  it('Should ignore references when property is not an array', () => {
+    const users = database.collections.users;
+
+    expect(extractArrayReferences(users)).toEqual({
+      roles: 'roles',
+      tags: 'tags',
+    });
+  });
+
+  it('Should replicate non-array ref property as a scalar field', async () => {
+    const users = database.collections.users;
+
+    const userReplication = replicateOrion({
+      waitForLeadership: false,
+      url: 'http://api.fake.pull/users-with-primary-tag',
+      collection: users,
+      batchSize: 3,
+      transporter,
+    });
+
+    await userReplication.start();
+    await userReplication.awaitInitialReplication();
+    await userReplication.cancel();
+
+    expect(transporter).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        url: 'http:/api.fake.pull/users-with-primary-tag/search',
+        method: 'POST',
+        params: {
+          limit: 3,
+          include: 'roles,tags',
+          with_trashed: true,
+        },
+      })
+    );
+
+    const results = (await users.find().exec()).map((user) =>
+      user.toMutableJSON()
+    );
+
+    expect(results).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'USR-TAG-1',
+          name: 'Owner',
+          primaryTag: '300',
+          roles: ['100'],
+          tags: [],
+        },
       ])
     );
   });

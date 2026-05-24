@@ -49,6 +49,10 @@ export const userSchema = {
     name: {
       type: 'string',
     },
+    primaryTag: {
+      type: 'string',
+      ref: 'tags',
+    },
     roles: {
       type: 'array',
       ref: 'roles',
@@ -69,6 +73,29 @@ export const userSchema = {
   },
 };
 
+export const memberSchema = {
+  version: 0,
+  description: 'The member schema',
+  primaryKey: 'id',
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      maxLength: 100,
+    },
+    name: {
+      type: 'string',
+    },
+    userRoles: {
+      type: 'array',
+      ref: 'roles',
+      items: {
+        type: 'string',
+      },
+    },
+  },
+};
+
 export async function initDatabase() {
   const database = await createRxDatabase({
     name: 'testdb',
@@ -78,6 +105,9 @@ export async function initDatabase() {
   await database.addCollections({
     users: {
       schema: userSchema,
+    },
+    members: {
+      schema: memberSchema,
     },
     roles: {
       schema: roleSchema,
