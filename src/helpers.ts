@@ -134,9 +134,9 @@ export async function executePull({
         const reference = collection.database.collections[value];
         const elements = item[valueProperty] || item[keyProperty];
 
-        item[key] = [];
         delete item[valueProperty];
         delete item[keyProperty];
+        item[key] = [];
 
         if (reference && elements?.length) {
           item[key] = elements.map((row: any) =>
