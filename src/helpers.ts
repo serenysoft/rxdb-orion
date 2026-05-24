@@ -132,7 +132,10 @@ export async function executePull({
         const reference = collection.database.collections[value];
 
         if (reference && item[property]) {
-          item[key] = item[property].map((row: any) =>
+          const elements = item[property];
+          delete item[property];
+
+          item[key] = elements.map((row: any) =>
             isPlainObject(row) ? row[reference.schema.primaryPath] : row
           );
         }
