@@ -123,6 +123,10 @@ export async function executePull({
 
   if (includeKeys.length) {
     request.params.include = includeKeys.join(',');
+
+    for (const key of include) {
+      references[key] = null;
+    }
   }
 
   const response = await executeRequest(transporter, request);
@@ -130,19 +134,24 @@ export async function executePull({
   for (const item of response) {
     if (!item[deletedField]) {
       for (const [key, value] of Object.entries(references)) {
-        const valueProperty = snakeCase(value);
+        const valueProperty = snakeCase(value || key);
         const keyProperty = snakeCase(key);
 
-        const reference = collection.database.collections[value];
+        let primaryPath = 'id';
         const elements = item[valueProperty] || item[keyProperty];
+
+        if (value) {
+          const reference = collection.database.collections[value];
+          primaryPath = reference.schema.primaryPath;
+        }
 
         delete item[valueProperty];
         delete item[keyProperty];
         item[key] = [];
 
-        if (reference && elements?.length) {
+        if (elements?.length) {
           item[key] = elements.map((row: any) =>
-            isPlainObject(row) ? row[reference.schema.primaryPath] : row
+            isPlainObject(row) ? row[primaryPath] : row
           );
         }
       }

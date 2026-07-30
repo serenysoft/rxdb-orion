@@ -375,7 +375,7 @@ describe('Replication', () => {
       batchSize: 3,
       deletedField: '_deleted',
       exclude: [],
-      include: ['skills'],
+      include: ['permissions'],
       wrap: 'data',
       transporter,
     });
@@ -385,7 +385,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull/users-include/search',
         params: {
           limit: 3,
-          include: 'roles,tags,skills',
+          include: 'roles,tags,permissions',
           with_trashed: true,
         },
       })
@@ -397,7 +397,7 @@ describe('Replication', () => {
         name: 'IncludeUser',
         roles: ['100'],
         tags: [],
-        skills: ['js', 'ts'],
+        permissions: ['p1', 'p2'],
       },
     ]);
   });
@@ -411,7 +411,7 @@ describe('Replication', () => {
       batchSize: 3,
       deletedField: '_deleted',
       exclude: ['roles'],
-      include: ['skills'],
+      include: ['permissions'],
       wrap: 'data',
       transporter,
     });
@@ -421,7 +421,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull/users-include-exclude/search',
         params: {
           limit: 3,
-          include: 'tags,skills',
+          include: 'tags,permissions',
           with_trashed: true,
         },
       })
@@ -433,7 +433,7 @@ describe('Replication', () => {
         name: 'IncludeExcludeUser',
         roles: [],
         tags: ['300'],
-        skills: ['java'],
+        permissions: ['p1', 'p2'],
       },
     ]);
   });
@@ -447,7 +447,7 @@ describe('Replication', () => {
       batchSize: 3,
       deletedField: '_deleted',
       exclude: ['roles', 'tags'],
-      include: ['skills'],
+      include: ['permissions'],
       wrap: 'data',
       transporter,
     });
@@ -457,7 +457,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull/users-include-only/search',
         params: {
           limit: 3,
-          include: 'skills',
+          include: 'permissions',
           with_trashed: true,
         },
       })
@@ -469,7 +469,7 @@ describe('Replication', () => {
         name: 'IncludeOnlyUser',
         roles: [],
         tags: [],
-        skills: ['python'],
+        permissions: ['p1', 'p2'],
       },
     ]);
   });
@@ -483,7 +483,7 @@ describe('Replication', () => {
       collection: users,
       batchSize: 3,
       transporter,
-      include: ['skills'],
+      include: ['permissions'],
     });
 
     await replicationState.start();
@@ -495,7 +495,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull-include/users/search',
         params: {
           limit: 3,
-          include: 'roles,tags,skills',
+          include: 'roles,tags,permissions',
           with_trashed: true,
         },
       })
@@ -516,7 +516,6 @@ describe('Replication', () => {
             id: 'INCPUSH-1',
             name: 'IncludePushUser',
             roles: ['100'],
-            skills: ['js'],
             _deleted: false,
           },
           assumedMasterState: undefined,
@@ -529,12 +528,12 @@ describe('Replication', () => {
       transporter: pushTransporter,
     });
 
-    // Should have called POST for the new document (roles stripped, skills kept)
+    // Should have called POST for the new document (roles stripped, permissions kept)
     expect(pushTransporter).toHaveBeenCalledWith(
       expect.objectContaining({
         url: 'http:/fake.test/users',
         method: 'POST',
-        data: { id: 'INCPUSH-1', name: 'IncludePushUser', skills: ['js'] },
+        data: { id: 'INCPUSH-1', name: 'IncludePushUser' },
       })
     );
   }, 10000);

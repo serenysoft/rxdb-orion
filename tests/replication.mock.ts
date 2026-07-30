@@ -103,7 +103,7 @@ nock('http://api.fake.pull')
     ],
   })
   .post('/users-include/search')
-  .query({ limit: 3, include: 'roles,tags,skills', with_trashed: true })
+  .query({ limit: 3, include: 'roles,tags,permissions', with_trashed: true })
   .reply(200, {
     data: [
       {
@@ -111,24 +111,33 @@ nock('http://api.fake.pull')
         name: 'IncludeUser',
         roles: ['100'],
         tags: [],
-        skills: ['js', 'ts'],
+        permissions: [
+          { id: 'p1', name: 'read' },
+          { id: 'p2', name: 'write' },
+        ],
       },
     ],
   })
   .post('/users-include-only/search')
-  .query({ limit: 3, include: 'skills', with_trashed: true })
+  .query({ limit: 3, include: 'permissions', with_trashed: true })
   .reply(200, {
-    data: [{ id: 'INC-ONLY-001', name: 'IncludeOnlyUser', skills: ['python'] }],
+    data: [
+      {
+        id: 'INC-ONLY-001',
+        name: 'IncludeOnlyUser',
+        permissions: [{ id: 'p1' }, { id: 'p2' }],
+      },
+    ],
   })
   .post('/users-include-exclude/search')
-  .query({ limit: 3, include: 'tags,skills', with_trashed: true })
+  .query({ limit: 3, include: 'tags,permissions', with_trashed: true })
   .reply(200, {
     data: [
       {
         id: 'INC-EX-001',
         name: 'IncludeExcludeUser',
         tags: ['300'],
-        skills: ['java'],
+        permissions: [{ id: 'p1' }, { id: 'p2' }],
       },
     ],
   });
@@ -146,7 +155,7 @@ nock('http://api.fake.manager')
 
 nock('http://api.fake.pull-include')
   .post('/users/search')
-  .query({ limit: 3, include: 'roles,tags,skills', with_trashed: true })
+  .query({ limit: 3, include: 'roles,tags,permissions', with_trashed: true })
   .reply(200, { data: [] });
 
 nock('http://api.fake.attachments')

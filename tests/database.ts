@@ -67,7 +67,7 @@ export const userSchema = {
         type: 'string',
       },
     },
-    skills: {
+    permissions: {
       type: 'array',
       items: {
         type: 'string',
