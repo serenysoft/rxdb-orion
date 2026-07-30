@@ -397,7 +397,7 @@ describe('Replication', () => {
         name: 'IncludeUser',
         roles: ['100'],
         tags: [],
-        permissions: ['p1', 'p2'],
+        permissions: [{ id: 'p1' }, { id: 'p2' }],
       },
     ]);
   });
@@ -433,7 +433,7 @@ describe('Replication', () => {
         name: 'IncludeExcludeUser',
         roles: [],
         tags: ['300'],
-        permissions: ['p1', 'p2'],
+        permissions: [{ id: 'p1' }, { id: 'p2' }],
       },
     ]);
   });
@@ -469,7 +469,7 @@ describe('Replication', () => {
         name: 'IncludeOnlyUser',
         roles: [],
         tags: [],
-        permissions: ['p1', 'p2'],
+        permissions: [{ id: 'p1' }, { id: 'p2' }],
       },
     ]);
   });

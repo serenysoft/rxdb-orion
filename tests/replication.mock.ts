@@ -111,10 +111,7 @@ nock('http://api.fake.pull')
         name: 'IncludeUser',
         roles: ['100'],
         tags: [],
-        permissions: [
-          { id: 'p1', name: 'read' },
-          { id: 'p2', name: 'write' },
-        ],
+        permissions: [{ id: 'p1' }, { id: 'p2' }],
       },
     ],
   })

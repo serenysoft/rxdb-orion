@@ -137,7 +137,7 @@ export async function executePull({
         const valueProperty = snakeCase(value || key);
         const keyProperty = snakeCase(key);
 
-        let primaryPath = 'id';
+        let primaryPath = null;
         const elements = item[valueProperty] || item[keyProperty];
 
         if (value) {
@@ -151,7 +151,7 @@ export async function executePull({
 
         if (elements?.length) {
           item[key] = elements.map((row: any) =>
-            isPlainObject(row) ? row[primaryPath] : row
+            isPlainObject(row) && primaryPath ? row[primaryPath] : row
           );
         }
       }
