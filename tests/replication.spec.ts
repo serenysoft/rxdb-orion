@@ -2,7 +2,12 @@ import { RxDatabase } from 'rxdb';
 import { RxReplicationState } from 'rxdb/plugins/replication';
 import { initDatabase } from './database';
 import { Manager, replicateOrion } from '../src';
-import { executeFetch, executePull, extractArrayReferences } from '../src/helpers';
+import {
+  executeFetch,
+  executePull,
+  executePush,
+  extractArrayReferences,
+} from '../src/helpers';
 import { Transporter } from '../src/types';
 // import { readFileSync } from 'fs';
 // import { resolve } from 'path';
@@ -75,6 +80,7 @@ describe('Replication', () => {
       batchSize: 3,
       deletedField: '_deleted',
       exclude: [],
+      include: [],
       wrap: 'data',
       transporter,
     });
@@ -97,6 +103,7 @@ describe('Replication', () => {
       batchSize: 3,
       deletedField: '_deleted',
       exclude: [],
+      include: [],
       wrap: 'data',
       transporter,
     });
@@ -358,4 +365,177 @@ describe('Replication', () => {
     expect(awaitInSync).toHaveBeenCalledTimes(1);
     awaitInSync.mockRestore();
   });
+
+  it('Should merge include with auto-detected keys in executePull', async () => {
+    const users = database.collections.users;
+
+    const result = await executePull({
+      collection: users,
+      url: 'http://api.fake.pull/users-include',
+      batchSize: 3,
+      deletedField: '_deleted',
+      exclude: [],
+      include: ['skills'],
+      wrap: 'data',
+      transporter,
+    });
+
+    expect(transporter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http:/api.fake.pull/users-include/search',
+        params: {
+          limit: 3,
+          include: 'roles,tags,skills',
+          with_trashed: true,
+        },
+      })
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'INC-001',
+        name: 'IncludeUser',
+        roles: ['100'],
+        tags: [],
+        skills: ['js', 'ts'],
+      },
+    ]);
+  });
+
+  it('Should merge include with exclude in executePull', async () => {
+    const users = database.collections.users;
+
+    const result = await executePull({
+      collection: users,
+      url: 'http://api.fake.pull/users-include-exclude',
+      batchSize: 3,
+      deletedField: '_deleted',
+      exclude: ['roles'],
+      include: ['skills'],
+      wrap: 'data',
+      transporter,
+    });
+
+    expect(transporter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http:/api.fake.pull/users-include-exclude/search',
+        params: {
+          limit: 3,
+          include: 'tags,skills',
+          with_trashed: true,
+        },
+      })
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'INC-EX-001',
+        name: 'IncludeExcludeUser',
+        roles: [],
+        tags: ['300'],
+        skills: ['java'],
+      },
+    ]);
+  });
+
+  it('Should use only include when all schema refs excluded', async () => {
+    const users = database.collections.users;
+
+    const result = await executePull({
+      collection: users,
+      url: 'http://api.fake.pull/users-include-only',
+      batchSize: 3,
+      deletedField: '_deleted',
+      exclude: ['roles', 'tags'],
+      include: ['skills'],
+      wrap: 'data',
+      transporter,
+    });
+
+    expect(transporter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http:/api.fake.pull/users-include-only/search',
+        params: {
+          limit: 3,
+          include: 'skills',
+          with_trashed: true,
+        },
+      })
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'INC-ONLY-001',
+        name: 'IncludeOnlyUser',
+        roles: [],
+        tags: [],
+        skills: ['python'],
+      },
+    ]);
+  });
+
+  it('Should pass include through replicateOrion config', async () => {
+    const users = database.collections.users;
+
+    replicationState = replicateOrion({
+      waitForLeadership: false,
+      url: 'http://api.fake.pull-include/users',
+      collection: users,
+      batchSize: 3,
+      transporter,
+      include: ['skills'],
+    });
+
+    await replicationState.start();
+    await replicationState.awaitInitialReplication();
+    await replicationState.cancel();
+
+    expect(transporter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http:/api.fake.pull-include/users/search',
+        params: {
+          limit: 3,
+          include: 'roles,tags,skills',
+          with_trashed: true,
+        },
+      })
+    );
+  }, 10000);
+
+  it('Should not pass include to executePush', async () => {
+    // include is pull-only — executePush signature does not accept include
+    const users = database.collections.users;
+    const pushTransporter = jest.fn().mockResolvedValue({});
+
+    await executePush({
+      url: 'http://fake.test/users',
+      headers: {},
+      rows: [
+        {
+          newDocumentState: {
+            id: 'INCPUSH-1',
+            name: 'IncludePushUser',
+            roles: ['100'],
+            skills: ['js'],
+            _deleted: false,
+          },
+          assumedMasterState: undefined,
+        },
+      ],
+      collection: users,
+      deletedField: '_deleted',
+      primaryPath: 'id',
+      exclude: [],
+      transporter: pushTransporter,
+    });
+
+    // Should have called POST for the new document (roles stripped, skills kept)
+    expect(pushTransporter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http:/fake.test/users',
+        method: 'POST',
+        data: { id: 'INCPUSH-1', name: 'IncludePushUser', skills: ['js'] },
+      })
+    );
+  }, 10000);
 });

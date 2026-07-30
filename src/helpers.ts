@@ -99,10 +99,12 @@ export async function executePull({
   headers,
   deletedField,
   exclude,
+  include,
   transporter,
 }: OrionPullExecuteOptions): Promise<any[]> {
   const references = extractArrayReferences(collection);
   const keys = Object.keys(references).filter((key) => !exclude.includes(key));
+  const includeKeys = [...keys, ...include];
 
   const request = {
     url,
@@ -119,8 +121,8 @@ export async function executePull({
     },
   } as any;
 
-  if (keys.length) {
-    request.params.include = keys.join(',');
+  if (includeKeys.length) {
+    request.params.include = includeKeys.join(',');
   }
 
   const response = await executeRequest(transporter, request);

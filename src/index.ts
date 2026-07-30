@@ -91,6 +91,7 @@ export function replicateOrion<RxDocType>({
   batchSize,
   waitForLeadership,
   exclude,
+  include,
   deletedField = '_deleted',
   updatedField = 'updated_at',
   updatedParam = 'minUpdatedAt',
@@ -128,6 +129,7 @@ export function replicateOrion<RxDocType>({
         deletedField,
         transporter,
         exclude: exclude?.pull || [],
+        include: include || [],
         data,
       });
 

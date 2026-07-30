@@ -52,6 +52,7 @@ export type OrionBaseExecuteOptions = OrionBaseOptions & {
 export type OrionPullExecuteOptions = OrionBaseExecuteOptions & {
   params?: RequestParams;
   data?: any;
+  include: string[];
 };
 
 export type OrionPushExecuteOptions = OrionBaseExecuteOptions & {
@@ -71,4 +72,5 @@ export type OrionReplicationOptions<RxDocType> = OrionBaseOptions &
     updatedParam?: string;
     modifier?: Modifier<RxDocType>;
     exclude?: ExcludeOptions;
+    include?: string[];
   };

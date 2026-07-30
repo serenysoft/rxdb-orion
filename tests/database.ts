@@ -67,6 +67,12 @@ export const userSchema = {
         type: 'string',
       },
     },
+    skills: {
+      type: 'array',
+      items: {
+        type: 'string',
+      },
+    },
   },
   attachments: {
     encrypted: false,
