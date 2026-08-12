@@ -117,17 +117,9 @@ Therefore, it is recommended to create a trait for making the necessary model cu
 
 namespace App\Traits;
 
-trait Syncable {
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
-    /**
-     * Initialize the trait
-     *
-     * @return void
-     */
-    protected function initializeSyncable()
-    {
-        $this->append('_deleted');
-    }
+trait Syncable {
 
     /**
      * Prepare a date for array / JSON serialization.
@@ -146,12 +138,12 @@ trait Syncable {
 
     /**
      * Determine if model is deleted
-     *
-     * @return boolean
      */
-    protected function getDeletedAttribute()
+    protected function _deleted(): Attribute
     {
-        return $this->deleted_at !== null;
+        return Attribute::make(
+            get: fn () => $this->deleted_at !== null,
+        );
     }
 
     /**
@@ -191,6 +183,112 @@ class User extends Model {
 }
 ```
 
+### Server-side attachments with Spatie Media Library
+
+If you need attachments to sync across multiple devices, you must persist the file data on the server. The recommended approach is to use [Spatie Media Library](https://spatie.be/docs/laravel-medialibrary) with an **Orion controller hook**. The `_attachments` field flows directly in the request body — no push modifier needed.
+
+#### 1. Configure the model
+
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use App\Traits\Syncable;
+
+class User extends Model implements HasMedia
+{
+    use InteractsWithMedia;
+    use Syncable;
+
+    /**
+     * Return base64-encoded attachments so RxDB can
+     * store them locally on pull.
+     */
+    protected function _attachments(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->getMedia('attachments')->mapWithKeys(function ($media) {
+                return [$media->file_name => [
+                    'type' => $media->mime_type,
+                    'data' => base64_encode(stream_get_contents($media->stream())),
+                ]];
+            })->toArray(),
+        );
+    }
+}
+```
+
+#### 2. Create a reusable controller trait
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\Traits;
+
+use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Model;
+
+trait HandlesMedia
+{
+    /**
+     * Process _attachments sent via push replication.
+     * The _attachments field contains { name: { type, data } }
+     * where data is base64-encoded.
+     */
+    protected function saveAttachments(Request $request, Model $model): void
+    {
+        $attachments = $request->input('_attachments', []);
+
+        if (empty($attachments)) {
+            return;
+        }
+
+        $model->getMedia()->each(fn($media) => $media->delete());
+
+        foreach ($attachments as $name => $meta) {
+            if (empty($meta['data'])) {
+                continue;
+            }
+
+            $model->addMediaFromBase64($meta['data'])
+                ->usingName($name)
+                ->usingFileName($name)
+                ->toMediaCollection();
+        }
+    }
+}
+```
+
+#### 4. Use the trait in your Orion controllers
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use Orion\Http\Controllers\Controller;
+use App\Models\User;
+use App\Http\Controllers\Api\Traits\HandlesMedia;
+
+class UsersController extends Controller
+{
+    use HandlesMedia;
+
+    protected $model = User::class;
+
+    protected function afterSave(Request $request, User $user): void
+    {
+        $this->saveAttachments($request, $user);
+    }
+}
+```
+
+You can still add your own logic before or after calling `saveAttachments`
 
 
 

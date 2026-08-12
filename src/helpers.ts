@@ -16,6 +16,57 @@ import {
   snakeCase,
 } from 'lodash';
 
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+}
+
+function normalizeAttachments(item: Record<string, any>): void {
+  if (item._attachments === undefined) {
+    item._attachments = {};
+    return;
+  }
+
+  for (const [, attr] of Object.entries(item._attachments)) {
+    const meta = attr as Record<string, any>;
+    if (typeof meta.data === 'string') {
+      meta.data = base64ToBlob(meta.data as string, meta.type);
+    }
+  }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // Strip the data:...;base64, prefix
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function serializeAttachments(item: Record<string, any>): Promise<void> {
+  if (!item._attachments || isEmpty(item._attachments)) {
+    return;
+  }
+
+  for (const [, attribute] of Object.entries(item._attachments)) {
+    const value = attribute as Record<string, any>;
+    if (value.data instanceof Blob) {
+      value.data = await blobToBase64(value.data);
+    }
+  }
+}
+
 export function buildUrl(parts: (number | string)[]): string {
   return compact(parts)
     .join('/')
@@ -105,6 +156,7 @@ export async function executePull({
   const references = extractArrayReferences(collection);
   const keys = Object.keys(references).filter((key) => !exclude.includes(key));
   const includeKeys = [...keys, ...include];
+  const hasAttachments = !!collection.schema.jsonSchema.attachments;
 
   const request = {
     url,
@@ -132,6 +184,10 @@ export async function executePull({
   const response = await executeRequest(transporter, request);
 
   for (const item of response) {
+    if (hasAttachments) {
+      normalizeAttachments(item);
+    }
+
     if (!item[deletedField]) {
       for (const [key, value] of Object.entries(references)) {
         const valueProperty = snakeCase(value || key);
@@ -176,6 +232,9 @@ export async function executePush({
   for (const row of rows) {
     const request: Request = { url, headers };
     const newDocState = row.newDocumentState as any;
+
+    await serializeAttachments(newDocState);
+
     const data = omit<any>(newDocState, [deletedField, ...references]);
 
     const isDeleted = newDocState[deletedField];

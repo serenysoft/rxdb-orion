@@ -9,8 +9,8 @@ import {
   extractArrayReferences,
 } from '../src/helpers';
 import { Transporter } from '../src/types';
-// import { readFileSync } from 'fs';
-// import { resolve } from 'path';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import fetch from 'node-fetch';
 import './replication.mock';
 
@@ -315,13 +315,12 @@ describe('Replication', () => {
     expect(cancel).toHaveBeenCalled();
   });
 
-  /*
-  it('Should replicate attachments', async () => {
+  it('Should push documents with attachments', async () => {
     const file = readFileSync(resolve(__dirname, './fixtures/icon.png'));
-    const { users } = database.collections;
+    const users = database.collections.users;
 
     const replicationState = replicateOrion({
-      url: 'http://api.fake.attachments/users',
+      url: 'http://api.fake.push-attachments/users',
       collection: users,
       batchSize: 3,
       transporter,
@@ -335,15 +334,106 @@ describe('Replication', () => {
       name: 'Bill',
     });
 
-    user.putAttachment({
+    await replicationState.awaitInSync();
+
+    // Insert is pushed as PUT because RxDB assigns an assumedMasterState
+    expect(transporter).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        url: 'http:/api.fake.push-attachments/users/1',
+        method: 'PUT',
+        data: { id: '1', name: 'Bill', _attachments: {} },
+        headers: { 'Accept': 'application/json' },
+      })
+    );
+
+    await user.putAttachment({
       id: 'icon.png',
       type: 'image/png',
       data: file.toString('base64'),
     });
 
     await replicationState.awaitInSync();
+
+    // Verify the push sent base64 data for the attachment
+    const base64Data = file.toString('base64');
+    expect(transporter).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        url: 'http:/api.fake.push-attachments/users/1',
+        method: 'PUT',
+        data: expect.objectContaining({
+          id: '1',
+          name: 'Bill',
+          _attachments: expect.objectContaining({
+            'icon.png': expect.objectContaining({
+              type: 'image/png',
+              data: base64Data,
+            }),
+          }),
+        }),
+        headers: { 'Accept': 'application/json' },
+      })
+    );
+
+    // Verify the attachment is still accessible locally
+    const doc = await users.findOne('1').exec();
+    expect(doc).toBeDefined();
+    const attachment = doc.getAttachment('icon.png');
+    expect(attachment).toBeDefined();
+    expect(attachment.id).toBe('icon.png');
+    expect(attachment.type).toBe('image/png');
   });
-  */
+
+  it('Should pull documents with attachments', async () => {
+    const users = database.collections.users;
+
+    replicationState = replicateOrion({
+      waitForLeadership: false,
+      url: 'http://api.fake.pull-attachments/users',
+      collection: users,
+      batchSize: 3,
+      transporter,
+    });
+
+    await replicationState.start();
+    await replicationState.awaitInitialReplication();
+    await replicationState.cancel();
+
+    // Verify pull request was made
+    expect(transporter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http:/api.fake.pull-attachments/users/search',
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+      })
+    );
+
+    // Verify pulled documents were stored with attachments accessible
+    const doc1 = await users.findOne('ATT-001').exec();
+    expect(doc1).toBeDefined();
+    expect(doc1.get('name')).toBe('AttachmentUser');
+
+    const file = doc1.getAttachment('file.txt');
+    expect(file).toBeDefined();
+    expect(file.id).toBe('file.txt');
+    expect(file.type).toBe('text/plain');
+
+    // Verify second doc: multiple attachments
+    const doc2 = await users.findOne('ATT-002').exec();
+    expect(doc2).toBeDefined();
+    expect(doc2.get('name')).toBe('MultiAttachmentUser');
+
+    const notes = doc2.getAttachment('notes.md');
+    expect(notes).toBeDefined();
+    expect(notes.id).toBe('notes.md');
+    expect(notes.type).toBe('text/markdown');
+
+    const image = doc2.getAttachment('image.png');
+    expect(image).toBeDefined();
+    expect(image.id).toBe('image.png');
+    expect(image.type).toBe('image/png');
+  });
 
   it('Should call awaitInSync on all replications via Manager', async () => {
     const users = database.collections.users;
@@ -395,6 +485,7 @@ describe('Replication', () => {
       {
         id: 'INC-001',
         name: 'IncludeUser',
+        _attachments: {},
         roles: ['100'],
         tags: [],
         permissions: [{ id: 'p1' }, { id: 'p2' }],
@@ -431,6 +522,7 @@ describe('Replication', () => {
       {
         id: 'INC-EX-001',
         name: 'IncludeExcludeUser',
+        _attachments: {},
         roles: [],
         tags: ['300'],
         permissions: [{ id: 'p1' }, { id: 'p2' }],
@@ -467,6 +559,7 @@ describe('Replication', () => {
       {
         id: 'INC-ONLY-001',
         name: 'IncludeOnlyUser',
+        _attachments: {},
         roles: [],
         tags: [],
         permissions: [{ id: 'p1' }, { id: 'p2' }],

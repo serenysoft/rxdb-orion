@@ -155,12 +155,49 @@ nock('http://api.fake.pull-include')
   .query({ limit: 3, include: 'roles,tags,permissions', with_trashed: true })
   .reply(200, { data: [] });
 
-nock('http://api.fake.attachments')
+nock('http://api.fake.push-attachments')
   .post('/users/search')
-  .query({ limit: 3, with_trashed: true })
+  .query({ limit: 3, include: 'roles,tags', with_trashed: true })
+  .times(3)
   .reply(200, { data: [] })
   .post('/users')
   .reply(200, { data: { id: '1', name: 'Bill' } })
   .put('/users/1')
   .times(2)
   .reply(200, { data: { id: '1', name: 'Bill' } });
+
+nock('http://api.fake.pull-attachments')
+  .post('/users/search')
+  .query({ limit: 3, include: 'roles,tags', with_trashed: true })
+  .reply(200, {
+    data: [
+      {
+        id: 'ATT-001',
+        name: 'AttachmentUser',
+        roles: [],
+        tags: [],
+        _attachments: {
+          'file.txt': {
+            type: 'text/plain',
+            data: 'dGVzdCBhdHRhY2htZW50IGNvbnRlbnQ=',
+          },
+        },
+      },
+      {
+        id: 'ATT-002',
+        name: 'MultiAttachmentUser',
+        roles: [],
+        tags: [],
+        _attachments: {
+          'notes.md': {
+            type: 'text/markdown',
+            data: 'IyBUZXN0IE5vdGVz',
+          },
+          'image.png': {
+            type: 'image/png',
+            data: 'ZmFrZVBOR0RhdGE=',
+          },
+        },
+      },
+    ],
+  });
