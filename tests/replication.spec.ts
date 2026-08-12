@@ -63,12 +63,10 @@ describe('Replication', () => {
       user.toMutableJSON()
     );
 
-    expect(results).toEqual(
-      expect.objectContaining([
-        { id: '10', name: 'Jeff', roles: ['100'], tags: ['300', '301'] },
-        { id: '11', name: 'Mark', roles: ['200'], tags: [] },
-      ])
-    );
+    expect(results).toEqual([
+      { id: '10', name: 'Jeff', roles: ['100'], tags: ['300', '301'] },
+      { id: '11', name: 'Mark', roles: ['200'], tags: [] },
+    ]);
   });
 
   it('Should map pull references from snake_case ref property', async () => {

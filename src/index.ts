@@ -14,7 +14,7 @@ import { executeFetch, executePull, executePush } from './helpers';
 export const ORION_REPLICATION_PREFIX = 'orion-';
 
 export class Manager {
-  private intervals: NodeJS.Timer[] = [];
+  private intervals: NodeJS.Timeout[] = [];
   private initialSyncFinished: boolean = false;
 
   constructor(
