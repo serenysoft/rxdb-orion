@@ -1,6 +1,6 @@
 # [RxDB](https://rxdb.info) - Replication with [Laravel Orion](https://tailflow.github.io/laravel-orion-docs)
 
-[![Build Status](https://github.com/serenysoft/rxdb-orion/actions/workflows/ci.yml/badge.svg)](https://github.com/serenysoft/rxdb-orion/actions/workflows/ci.yml)
+[![Build Status](https://github.com/serenysoft/rxdb-orion/actions/workflows/test.yml/badge.svg)](https://github.com/serenysoft/rxdb-orion/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/serenysoft/rxdb-orion/branch/master/graph/badge.svg?token=GANBHB4ZHS)](https://codecov.io/gh/serenysoft/rxdb-orion)
 
 The Orion replication provides handlers for run replication with Orion REST API as the transportation layer.
@@ -105,6 +105,11 @@ class CreateCategoriesTable extends Migration
   }
 }
 ```
+
+> **Warning:**
+> When a model has `hasMany` relations, replications run **in parallel**. Child records can be created before their parent record, so a foreign key constraint may be violated on the server.
+>
+> For this reason, do **not** create a foreign key constraint for `hasMany` relations in your migrations. Store the parent id as a plain column instead.
 
 ### Model
 
