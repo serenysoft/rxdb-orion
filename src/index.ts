@@ -1,5 +1,5 @@
 import { last, pick } from 'lodash';
-import { filter, firstValueFrom, Subject } from 'rxjs';
+import { Subject } from 'rxjs';
 import {
   RxReplicationState,
   replicateRxCollection,
@@ -16,11 +16,10 @@ export const ORION_REPLICATION_PREFIX = 'orion-';
 export class Manager {
   private intervals: NodeJS.Timeout[] = [];
   private initialSyncFinished: boolean = false;
-  private stopped: boolean = false;
 
   constructor(
     private replications: RxReplicationState<any, any>[],
-    private delay: number = 10000,
+    private delay: number = 10000
   ) {}
 
   async start(): Promise<void> {
@@ -28,57 +27,36 @@ export class Manager {
       return;
     }
 
-    this.stopped = false;
-
     await Promise.all(
       this.replications.map(async (replicationState) => {
         await replicationState.start();
-      }),
+      })
     );
 
     for (const replicationState of this.replications) {
-      this.scheduleResync(replicationState);
+      this.intervals.push(
+        setInterval(() => replicationState.reSync(), this.delay)
+      );
     }
   }
 
-  private scheduleResync(replicationState: RxReplicationState<any, any>): void {
-    const timer = setTimeout(() => {
-      firstValueFrom(replicationState.active$.pipe(filter((active) => !active)))
-        .then(() => {
-          if (this.stopped) {
-            return;
-          }
-
-          replicationState.reSync();
-          this.scheduleResync(replicationState);
-        })
-        .catch(() => {
-          // Replication was stopped or canceled, stop rescheduling.
-        });
-    }, this.delay);
-
-    this.intervals.push(timer);
-  }
-
   async stop(): Promise<void> {
-    this.stopped = true;
-
     while (this.intervals.length) {
-      clearTimeout(this.intervals.pop());
+      clearInterval(this.intervals.pop());
     }
   }
 
   async cancel(): Promise<void> {
     await Promise.all(
-      this.replications.map((replicationState) => replicationState.cancel()),
+      this.replications.map((replicationState) => replicationState.cancel())
     );
   }
 
   async awaitInSync(): Promise<void> {
     await Promise.all(
       this.replications.map((replicationState) =>
-        replicationState.awaitInSync(),
-      ),
+        replicationState.awaitInSync()
+      )
     );
   }
 
@@ -92,7 +70,7 @@ export class Manager {
       await Promise.all(
         this.replications.map(async (replicationState) => {
           await replicationState.awaitInitialReplication();
-        }),
+        })
       );
     } finally {
       this.initialSyncFinished = true;
@@ -171,7 +149,7 @@ export function replicateOrion<RxDocType>({
     batchSize,
     modifier: modifier?.push,
     handler: async (
-      rows: RxReplicationWriteToMasterRow<RxDocType>[],
+      rows: RxReplicationWriteToMasterRow<RxDocType>[]
     ): Promise<[]> => {
       const result = await executePush({
         url,

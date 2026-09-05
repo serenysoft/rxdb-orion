@@ -1,6 +1,5 @@
 import { RxDatabase } from 'rxdb';
 import { RxReplicationState } from 'rxdb/plugins/replication';
-import { BehaviorSubject } from 'rxjs';
 import { initDatabase } from './database';
 import { Manager, replicateOrion } from '../src';
 import {
@@ -312,37 +311,6 @@ describe('Replication', () => {
 
     await manager.cancel();
     expect(cancel).toHaveBeenCalled();
-  });
-
-  it('Should wait for the replication to be idle before resyncing', async () => {
-    jest.useFakeTimers();
-
-    try {
-      const active$ = new BehaviorSubject(true);
-      const reSync = jest.fn();
-
-      const replicationState = {
-        start: jest.fn().mockResolvedValue(undefined),
-        reSync,
-        active$: active$.asObservable(),
-      } as any;
-
-      const manager = new Manager([replicationState], 1000);
-
-      await manager.start();
-
-      jest.advanceTimersByTime(1000);
-      expect(reSync).not.toHaveBeenCalled();
-
-      active$.next(false);
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(reSync).toHaveBeenCalledTimes(1);
-
-      await manager.stop();
-    } finally {
-      jest.useRealTimers();
-    }
   });
 
   it('Should push documents with attachments', async () => {
