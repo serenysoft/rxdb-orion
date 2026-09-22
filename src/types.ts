@@ -5,6 +5,7 @@ import {
   RxReplicationWriteToMasterRow,
   WithDeleted,
 } from 'rxdb';
+import { RxReplicationState } from 'rxdb/plugins/replication';
 
 export type RequestHeaders = Record<string, string | number | boolean>;
 export type RequestParams = Record<string, string | number | object | boolean>;
@@ -24,6 +25,11 @@ export type Request = Route & {
 };
 
 export type Transporter = (request: Request) => Promise<any>;
+
+export type ManagerError = {
+  error: Error;
+  replicationState: RxReplicationState<any, any>;
+};
 
 export interface Modifier<RxDocType> {
   pull?: (data: any) => MaybePromise<WithDeleted<RxDocType>>;

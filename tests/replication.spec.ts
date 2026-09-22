@@ -17,7 +17,7 @@ import './replication.mock';
 describe('Replication', () => {
   let database: RxDatabase;
   let transporter: Transporter;
-  let replicationState: RxReplicationState<any, any>;
+  let replicationState: RxReplicationState<any, any> | undefined;
 
   beforeAll(() => {
     globalThis.fetch = fetch as any;
@@ -29,6 +29,10 @@ describe('Replication', () => {
   });
 
   afterEach(async () => {
+    if (replicationState) {
+      await replicationState.cancel();
+      replicationState = undefined;
+    }
     await database.close();
   });
 
@@ -56,11 +60,11 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      })
+      }),
     );
 
     const results = (await users.find().exec()).map((user) =>
-      user.toMutableJSON()
+      user.toMutableJSON(),
     );
 
     expect(results).toEqual([
@@ -149,11 +153,11 @@ describe('Replication', () => {
           include: 'roles,tags',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     const results = (await users.find().exec()).map((user) =>
-      user.toMutableJSON()
+      user.toMutableJSON(),
     );
 
     expect(results).toEqual(
@@ -165,7 +169,7 @@ describe('Replication', () => {
           roles: ['100'],
           tags: [],
         },
-      ])
+      ]),
     );
   });
 
@@ -207,7 +211,7 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      })
+      }),
     );
 
     expect(transporter).toHaveBeenNthCalledWith(
@@ -216,7 +220,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.push/users/1/roles/sync',
         method: 'PATCH',
         data: { 'resources': ['100', '200'] },
-      })
+      }),
     );
 
     //the nth 4 is reference to `RESYNC`
@@ -226,7 +230,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users/1',
         method: 'DELETE',
-      })
+      }),
     );
   });
 
@@ -259,7 +263,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users-exclude/search',
         method: 'POST',
-      })
+      }),
     );
 
     expect(transporter).toHaveBeenNthCalledWith(
@@ -275,7 +279,7 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      })
+      }),
     );
   });
 
@@ -342,7 +346,7 @@ describe('Replication', () => {
         method: 'PUT',
         data: { id: '1', name: 'Bill', _attachments: {} },
         headers: { 'Accept': 'application/json' },
-      })
+      }),
     );
 
     await user.putAttachment({
@@ -371,7 +375,7 @@ describe('Replication', () => {
           }),
         }),
         headers: { 'Accept': 'application/json' },
-      })
+      }),
     );
 
     // Verify the attachment is still accessible locally
@@ -381,6 +385,8 @@ describe('Replication', () => {
     expect(attachment).toBeDefined();
     expect(attachment.id).toBe('icon.png');
     expect(attachment.type).toBe('image/png');
+
+    await replicationState.cancel();
   });
 
   it('Should pull documents with attachments', async () => {
@@ -404,7 +410,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull-attachments/users/search',
         method: 'POST',
         headers: { 'Accept': 'application/json' },
-      })
+      }),
     );
 
     // Verify pulled documents were stored with attachments accessible
@@ -454,6 +460,58 @@ describe('Replication', () => {
     awaitInSync.mockRestore();
   });
 
+  it('Should emit replication errors via the Manager errors$ event', async () => {
+    const users = database.collections.users;
+    const failingTransporter = jest
+      .fn()
+      .mockRejectedValue(new Error('Network error'));
+
+    const failingReplication = replicateOrion({
+      url: 'http://api.fake.error/users',
+      collection: users,
+      batchSize: 3,
+      retryTime: 100,
+      waitForLeadership: false,
+      transporter: failingTransporter,
+    });
+
+    const manager = new Manager([failingReplication], 1000);
+
+    const firstError = new Promise<{
+      replicationState: typeof failingReplication;
+      error: Error;
+    }>((resolve) => {
+      const subscription = manager.errors$.subscribe((event) => {
+        resolve(event);
+        subscription.unsubscribe();
+      });
+    });
+
+    await manager.start();
+
+    let timeoutId: NodeJS.Timeout | undefined;
+    const event = await Promise.race([
+      firstError,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('No error emitted')),
+          5000,
+        );
+      }),
+    ]).finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    });
+
+    expect(event.replicationState).toBe(failingReplication);
+    expect(event.error).toBeInstanceOf(Error);
+    expect((event.error as any).code).toBe('RC_PULL');
+
+    await manager.stop();
+    await manager.cancel();
+  });
+
   it('Should merge include with auto-detected keys in executePull', async () => {
     const users = database.collections.users;
 
@@ -476,7 +534,7 @@ describe('Replication', () => {
           include: 'roles,tags,permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     expect(result).toEqual([
@@ -513,7 +571,7 @@ describe('Replication', () => {
           include: 'tags,permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     expect(result).toEqual([
@@ -550,7 +608,7 @@ describe('Replication', () => {
           include: 'permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     expect(result).toEqual([
@@ -589,7 +647,7 @@ describe('Replication', () => {
           include: 'roles,tags,permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
   }, 10000);
 
@@ -625,7 +683,7 @@ describe('Replication', () => {
         url: 'http:/fake.test/users',
         method: 'POST',
         data: { id: 'INCPUSH-1', name: 'IncludePushUser' },
-      })
+      }),
     );
   }, 10000);
 });

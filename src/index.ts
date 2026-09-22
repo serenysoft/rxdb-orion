@@ -8,7 +8,7 @@ import {
   RxReplicationPullStreamItem,
   RxReplicationWriteToMasterRow,
 } from 'rxdb';
-import { OrionReplicationOptions } from './types';
+import { ManagerError, OrionReplicationOptions } from './types';
 import { executeFetch, executePull, executePush } from './helpers';
 
 export const ORION_REPLICATION_PREFIX = 'orion-';
@@ -17,10 +17,19 @@ export class Manager {
   private intervals: NodeJS.Timeout[] = [];
   private initialSyncFinished: boolean = false;
 
+  private readonly errorSubject = new Subject<ManagerError>();
+  readonly errors$ = this.errorSubject.asObservable();
+
   constructor(
     private replications: RxReplicationState<any, any>[],
-    private delay: number = 10000
-  ) {}
+    private delay: number = 10000,
+  ) {
+    this.replications.forEach((replicationState) => {
+      replicationState.error$.subscribe((error) => {
+        this.errorSubject.next({ replicationState, error });
+      });
+    });
+  }
 
   async start(): Promise<void> {
     if (this.intervals.length) {
@@ -30,12 +39,12 @@ export class Manager {
     await Promise.all(
       this.replications.map(async (replicationState) => {
         await replicationState.start();
-      })
+      }),
     );
 
     for (const replicationState of this.replications) {
       this.intervals.push(
-        setInterval(() => replicationState.reSync(), this.delay)
+        setInterval(() => replicationState.reSync(), this.delay),
       );
     }
   }
@@ -48,15 +57,15 @@ export class Manager {
 
   async cancel(): Promise<void> {
     await Promise.all(
-      this.replications.map((replicationState) => replicationState.cancel())
+      this.replications.map((replicationState) => replicationState.cancel()),
     );
   }
 
   async awaitInSync(): Promise<void> {
     await Promise.all(
       this.replications.map((replicationState) =>
-        replicationState.awaitInSync()
-      )
+        replicationState.awaitInSync(),
+      ),
     );
   }
 
@@ -70,7 +79,7 @@ export class Manager {
       await Promise.all(
         this.replications.map(async (replicationState) => {
           await replicationState.awaitInitialReplication();
-        })
+        }),
       );
     } finally {
       this.initialSyncFinished = true;
@@ -149,7 +158,7 @@ export function replicateOrion<RxDocType>({
     batchSize,
     modifier: modifier?.push,
     handler: async (
-      rows: RxReplicationWriteToMasterRow<RxDocType>[]
+      rows: RxReplicationWriteToMasterRow<RxDocType>[],
     ): Promise<[]> => {
       const result = await executePush({
         url,
