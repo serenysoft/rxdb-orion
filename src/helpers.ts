@@ -1,9 +1,11 @@
-import { RxCollection } from 'rxdb';
+import { RxCollection, WithDeleted } from 'rxdb';
 import {
   OrionPullExecuteOptions,
   OrionPushExecuteOptions,
   Request,
+  STATUS_NOT_FOUND,
   Transporter,
+  TransporterError,
 } from './types';
 import {
   compact,
@@ -15,6 +17,12 @@ import {
   omitBy,
   snakeCase,
 } from 'lodash';
+
+export function checkRowError(error: unknown): boolean {
+  const value = error as TransporterError | null;
+
+  return (value?.status ?? value?.response?.status) === STATUS_NOT_FOUND;
+}
 
 function base64ToBlob(base64: string, mimeType: string): Blob {
   const binary = atob(base64);
@@ -225,13 +233,23 @@ export async function executePush({
   deletedField,
   primaryPath,
   exclude,
+  rowError = checkRowError,
   transporter,
-}: OrionPushExecuteOptions): Promise<[]> {
+}: OrionPushExecuteOptions): Promise<WithDeleted<any>[]> {
   const references = Object.keys(extractArrayReferences(collection));
+  const conflicts: WithDeleted<any>[] = [];
 
   for (const row of rows) {
     const request: Request = { url, headers };
     const newDocState = row.newDocumentState as any;
+
+    // Captured before serializeAttachments, so a conflict resolved by RxDB
+    // does not carry Blob/base64 payloads in place of attachments.
+    const conflictState = {
+      ...newDocState,
+      [deletedField]: true,
+      _attachments: {},
+    };
 
     await serializeAttachments(newDocState);
 
@@ -252,7 +270,26 @@ export async function executePush({
       request.data = data;
     }
 
-    await executeRequest(transporter, request);
+    try {
+      await executeRequest(transporter, request);
+    } catch (error) {
+      const valid = rowError(error);
+
+      if (valid) {
+        // The master row is gone: a delete row is already applied, while an
+        // update is resolved as a conflict so the local document is removed.
+        if (isDeleted) {
+          continue;
+        }
+
+        if (!isNew) {
+          conflicts.push(conflictState);
+          continue;
+        }
+      }
+
+      throw error;
+    }
 
     if (!isDeleted) {
       for (const ref of references) {
@@ -273,5 +310,5 @@ export async function executePush({
     }
   }
 
-  return [];
+  return conflicts;
 }

@@ -60,11 +60,11 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      }),
+      })
     );
 
     const results = (await users.find().exec()).map((user) =>
-      user.toMutableJSON(),
+      user.toMutableJSON()
     );
 
     expect(results).toEqual([
@@ -153,11 +153,11 @@ describe('Replication', () => {
           include: 'roles,tags',
           with_trashed: true,
         },
-      }),
+      })
     );
 
     const results = (await users.find().exec()).map((user) =>
-      user.toMutableJSON(),
+      user.toMutableJSON()
     );
 
     expect(results).toEqual(
@@ -169,7 +169,7 @@ describe('Replication', () => {
           roles: ['100'],
           tags: [],
         },
-      ]),
+      ])
     );
   });
 
@@ -211,7 +211,7 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      }),
+      })
     );
 
     expect(transporter).toHaveBeenNthCalledWith(
@@ -220,7 +220,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.push/users/1/roles/sync',
         method: 'PATCH',
         data: { 'resources': ['100', '200'] },
-      }),
+      })
     );
 
     //the nth 4 is reference to `RESYNC`
@@ -230,7 +230,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users/1',
         method: 'DELETE',
-      }),
+      })
     );
   });
 
@@ -263,7 +263,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users-exclude/search',
         method: 'POST',
-      }),
+      })
     );
 
     expect(transporter).toHaveBeenNthCalledWith(
@@ -279,7 +279,7 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      }),
+      })
     );
   });
 
@@ -346,7 +346,7 @@ describe('Replication', () => {
         method: 'PUT',
         data: { id: '1', name: 'Bill', _attachments: {} },
         headers: { 'Accept': 'application/json' },
-      }),
+      })
     );
 
     await user.putAttachment({
@@ -375,7 +375,7 @@ describe('Replication', () => {
           }),
         }),
         headers: { 'Accept': 'application/json' },
-      }),
+      })
     );
 
     // Verify the attachment is still accessible locally
@@ -410,7 +410,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull-attachments/users/search',
         method: 'POST',
         headers: { 'Accept': 'application/json' },
-      }),
+      })
     );
 
     // Verify pulled documents were stored with attachments accessible
@@ -495,7 +495,7 @@ describe('Replication', () => {
       new Promise<never>((_, reject) => {
         timeoutId = setTimeout(
           () => reject(new Error('No error emitted')),
-          5000,
+          5000
         );
       }),
     ]).finally(() => {
@@ -534,7 +534,7 @@ describe('Replication', () => {
           include: 'roles,tags,permissions',
           with_trashed: true,
         },
-      }),
+      })
     );
 
     expect(result).toEqual([
@@ -571,7 +571,7 @@ describe('Replication', () => {
           include: 'tags,permissions',
           with_trashed: true,
         },
-      }),
+      })
     );
 
     expect(result).toEqual([
@@ -608,7 +608,7 @@ describe('Replication', () => {
           include: 'permissions',
           with_trashed: true,
         },
-      }),
+      })
     );
 
     expect(result).toEqual([
@@ -647,7 +647,7 @@ describe('Replication', () => {
           include: 'roles,tags,permissions',
           with_trashed: true,
         },
-      }),
+      })
     );
   }, 10000);
 
@@ -683,7 +683,208 @@ describe('Replication', () => {
         url: 'http:/fake.test/users',
         method: 'POST',
         data: { id: 'INCPUSH-1', name: 'IncludePushUser' },
-      }),
+      })
     );
   }, 10000);
+
+  it('Should keep pushing when a delete was not found on remote api', async () => {
+    const users = database.collections.users;
+
+    const pushTransporter = jest
+      .fn<ReturnType<Transporter>, Parameters<Transporter>>()
+      .mockRejectedValueOnce({ response: { status: 404 } })
+      .mockResolvedValueOnce({});
+
+    const conflicts = await executePush({
+      url: 'http://api.fake.push-not-found/users',
+      headers: {},
+      rows: [
+        {
+          assumedMasterState: { id: '1', name: 'Jeff' } as any,
+          newDocumentState: { id: '1', name: 'Jeff', _deleted: true } as any,
+        },
+        {
+          assumedMasterState: undefined,
+          newDocumentState: { id: '2', name: 'Bill', _deleted: false } as any,
+        },
+      ],
+      collection: users,
+      deletedField: '_deleted',
+      primaryPath: 'id',
+      exclude: [],
+      transporter: pushTransporter,
+    });
+
+    expect(conflicts).toEqual([]);
+    expect(pushTransporter).toHaveBeenCalledTimes(2);
+
+    expect(pushTransporter).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        url: 'http:/api.fake.push-not-found/users/1',
+        method: 'DELETE',
+      })
+    );
+
+    expect(pushTransporter).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        url: 'http:/api.fake.push-not-found/users',
+        method: 'POST',
+      })
+    );
+  });
+
+  it('Should resolve a vanished master row as a delete conflict', async () => {
+    const users = database.collections.users;
+
+    const pushTransporter = jest
+      .fn<ReturnType<Transporter>, Parameters<Transporter>>()
+      .mockRejectedValue({ response: { status: 404 } });
+
+    const conflicts = await executePush({
+      url: 'http://api.fake.push-not-found/users',
+      headers: {},
+      rows: [
+        {
+          assumedMasterState: { id: '1', name: 'Jeff' } as any,
+          newDocumentState: { id: '1', name: 'Bill', _deleted: false } as any,
+        },
+      ],
+      collection: users,
+      deletedField: '_deleted',
+      primaryPath: 'id',
+      exclude: [],
+      transporter: pushTransporter,
+    });
+
+    expect(conflicts).toEqual([
+      { id: '1', name: 'Bill', _deleted: true, _attachments: {} },
+    ]);
+  });
+
+  it('Should still fail when a create is not found on remote api', async () => {
+    const users = database.collections.users;
+    const notFound = { response: { status: 404 } };
+
+    const pushTransporter = jest
+      .fn<ReturnType<Transporter>, Parameters<Transporter>>()
+      .mockRejectedValue(notFound);
+
+    await expect(
+      executePush({
+        url: 'http://api.fake.push-not-found/users',
+        headers: {},
+        rows: [
+          {
+            assumedMasterState: undefined,
+            newDocumentState: { id: '2', name: 'Bill', _deleted: false } as any,
+          },
+        ],
+        collection: users,
+        deletedField: '_deleted',
+        primaryPath: 'id',
+        exclude: [],
+        transporter: pushTransporter,
+      })
+    ).rejects.toEqual(notFound);
+  });
+
+  it('Should use the row error classifier provided in the options', async () => {
+    const users = database.collections.users;
+
+    const pushTransporter = jest
+      .fn<ReturnType<Transporter>, Parameters<Transporter>>()
+      .mockRejectedValueOnce({ statusCode: 410 });
+
+    const conflicts = await executePush({
+      url: 'http://api.fake.push-not-found/users',
+      headers: {},
+      rows: [
+        {
+          assumedMasterState: { id: '1', name: 'Jeff' } as any,
+          newDocumentState: { id: '1', name: 'Jeff', _deleted: true } as any,
+        },
+      ],
+      collection: users,
+      deletedField: '_deleted',
+      primaryPath: 'id',
+      exclude: [],
+      rowError: (error) =>
+        (error as { statusCode?: number })?.statusCode === 410,
+      transporter: pushTransporter,
+    });
+
+    expect(conflicts).toEqual([]);
+    expect(pushTransporter).toHaveBeenCalledTimes(1);
+  });
+
+  it('Should keep failing a delete when the classifier rejects the error', async () => {
+    const users = database.collections.users;
+    const notFound = { response: { status: 404 } };
+
+    const pushTransporter = jest
+      .fn<ReturnType<Transporter>, Parameters<Transporter>>()
+      .mockRejectedValue(notFound);
+
+    await expect(
+      executePush({
+        url: 'http://api.fake.push-not-found/users',
+        headers: {},
+        rows: [
+          {
+            assumedMasterState: { id: '1', name: 'Jeff' } as any,
+            newDocumentState: { id: '1', name: 'Jeff', _deleted: true } as any,
+          },
+        ],
+        collection: users,
+        deletedField: '_deleted',
+        primaryPath: 'id',
+        exclude: [],
+        rowError: () => false,
+        transporter: pushTransporter,
+      })
+    ).rejects.toEqual(notFound);
+  });
+
+  it('Should remove the local document when an update is not found on remote api', async () => {
+    const users = database.collections.users;
+    let searches = 0;
+
+    const notFoundTransporter: Transporter = async (request) => {
+      if (request.url?.endsWith('/search')) {
+        searches += 1;
+
+        return {
+          data: searches === 1 ? [{ id: 'CF-1', name: 'Jeff', roles: [] }] : [],
+        };
+      }
+
+      if (request.method === 'PUT') {
+        throw { response: { status: 404 } };
+      }
+
+      return {};
+    };
+
+    const state = replicateOrion({
+      waitForLeadership: false,
+      url: 'http://api.fake.conflict/users',
+      collection: users,
+      transporter: notFoundTransporter,
+    });
+
+    await state.start();
+    await state.awaitInitialReplication();
+
+    const user = await users.findOne('CF-1').exec();
+    expect(user).not.toBeNull();
+
+    await user!.patch({ name: 'Bill' });
+    await state.awaitInSync();
+
+    expect(await users.findOne('CF-1').exec()).toBeNull();
+
+    await state.cancel();
+  }, 20000);
 });

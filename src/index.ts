@@ -7,10 +7,17 @@ import {
 import {
   RxReplicationPullStreamItem,
   RxReplicationWriteToMasterRow,
+  WithDeleted,
 } from 'rxdb';
 import { ManagerError, OrionReplicationOptions } from './types';
-import { executeFetch, executePull, executePush } from './helpers';
+import {
+  checkRowError,
+  executeFetch,
+  executePull,
+  executePush,
+} from './helpers';
 
+export * from './types';
 export const ORION_REPLICATION_PREFIX = 'orion-';
 
 export class Manager {
@@ -22,7 +29,7 @@ export class Manager {
 
   constructor(
     private replications: RxReplicationState<any, any>[],
-    private delay: number = 10000,
+    private delay: number = 10000
   ) {
     this.replications.forEach((replicationState) => {
       replicationState.error$.subscribe((error) => {
@@ -39,12 +46,12 @@ export class Manager {
     await Promise.all(
       this.replications.map(async (replicationState) => {
         await replicationState.start();
-      }),
+      })
     );
 
     for (const replicationState of this.replications) {
       this.intervals.push(
-        setInterval(() => replicationState.reSync(), this.delay),
+        setInterval(() => replicationState.reSync(), this.delay)
       );
     }
   }
@@ -57,15 +64,15 @@ export class Manager {
 
   async cancel(): Promise<void> {
     await Promise.all(
-      this.replications.map((replicationState) => replicationState.cancel()),
+      this.replications.map((replicationState) => replicationState.cancel())
     );
   }
 
   async awaitInSync(): Promise<void> {
     await Promise.all(
       this.replications.map((replicationState) =>
-        replicationState.awaitInSync(),
-      ),
+        replicationState.awaitInSync()
+      )
     );
   }
 
@@ -79,7 +86,7 @@ export class Manager {
       await Promise.all(
         this.replications.map(async (replicationState) => {
           await replicationState.awaitInitialReplication();
-        }),
+        })
       );
     } finally {
       this.initialSyncFinished = true;
@@ -109,6 +116,7 @@ export function replicateOrion<RxDocType>({
   retryTime = 1000 * 5, // in ms
   autoStart = false,
   transporter = executeFetch,
+  rowError = checkRowError,
 }: OrionReplicationOptions<RxDocType>): RxReplicationState<RxDocType, any> {
   const primaryPath = collection.schema.primaryPath;
   const pullStream$ = new Subject<RxReplicationPullStreamItem<any, any>>();
@@ -158,8 +166,8 @@ export function replicateOrion<RxDocType>({
     batchSize,
     modifier: modifier?.push,
     handler: async (
-      rows: RxReplicationWriteToMasterRow<RxDocType>[],
-    ): Promise<[]> => {
+      rows: RxReplicationWriteToMasterRow<RxDocType>[]
+    ): Promise<WithDeleted<RxDocType>[]> => {
       const result = await executePush({
         url,
         rows,
@@ -168,6 +176,7 @@ export function replicateOrion<RxDocType>({
         deletedField,
         primaryPath,
         exclude: exclude?.push || [],
+        rowError,
         transporter,
       });
 

@@ -7,6 +7,8 @@ import {
 } from 'rxdb';
 import { RxReplicationState } from 'rxdb/plugins/replication';
 
+export const STATUS_NOT_FOUND = 404;
+
 export type RequestHeaders = Record<string, string | number | boolean>;
 export type RequestParams = Record<string, string | number | object | boolean>;
 
@@ -25,6 +27,13 @@ export type Request = Route & {
 };
 
 export type Transporter = (request: Request) => Promise<any>;
+
+export type TransporterError = {
+  status?: number;
+  response?: { status?: number };
+};
+
+export type RowErrorHandler = (error: unknown) => boolean;
 
 export type ManagerError = {
   error: Error;
@@ -45,6 +54,7 @@ export type OrionBaseOptions = {
   wrap?: string;
   batchSize?: number;
   transporter?: Transporter;
+  rowError?: RowErrorHandler;
 };
 
 export type OrionBaseExecuteOptions = OrionBaseOptions & {
