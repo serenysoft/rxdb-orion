@@ -1,5 +1,5 @@
 import { last, pick } from 'lodash';
-import { Subject } from 'rxjs';
+import { Subject, filter, firstValueFrom, from, race } from 'rxjs';
 import {
   RxReplicationState,
   replicateRxCollection,
@@ -9,7 +9,7 @@ import {
   RxReplicationWriteToMasterRow,
   WithDeleted,
 } from 'rxdb';
-import { ManagerError, OrionReplicationOptions } from './types';
+import { ManagerError, PREFIX_ORION, OrionReplicationOptions } from './types';
 import {
   checkRowError,
   executeFetch,
@@ -18,18 +18,47 @@ import {
 } from './helpers';
 
 export * from './types';
-export const ORION_REPLICATION_PREFIX = 'orion-';
+
+/**
+ * Replications that must be fully synced before a dependent replication
+ * starts. Populated by `dependsOn` in `replicateOrion` and consumed by the
+ * `Manager` to order the initial sync across related collections.
+ */
+const replicationDependencies = new WeakMap<
+  RxReplicationState<any, any>,
+  RxReplicationState<any, any>[]
+>();
+
+async function waitForDependencies(
+  replicationState: RxReplicationState<any, any>,
+  dependencies?: RxReplicationState<any, any>[],
+): Promise<void> {
+  if (!dependencies?.length) {
+    return;
+  }
+
+  await firstValueFrom(
+    race(
+      from(
+        Promise.all(dependencies.map((dependency) => dependency.awaitInSync())),
+      ),
+      replicationState.canceled$.pipe(filter(Boolean)),
+    ),
+  );
+}
 
 export class Manager {
   private intervals: NodeJS.Timeout[] = [];
   private initialSyncFinished: boolean = false;
+  private starting: Promise<void> | null = null;
+  private startError: Error | null = null;
 
   private readonly errorSubject = new Subject<ManagerError>();
   readonly errors$ = this.errorSubject.asObservable();
 
   constructor(
     private replications: RxReplicationState<any, any>[],
-    private delay: number = 10000
+    private delay: number = 10000,
   ) {
     this.replications.forEach((replicationState) => {
       replicationState.error$.subscribe((error) => {
@@ -43,16 +72,19 @@ export class Manager {
       return;
     }
 
-    await Promise.all(
-      this.replications.map(async (replicationState) => {
-        await replicationState.start();
-      })
-    );
-
     for (const replicationState of this.replications) {
       this.intervals.push(
-        setInterval(() => replicationState.reSync(), this.delay)
+        setInterval(() => {
+          if (replicationState.wasStarted && !replicationState.isStopped()) {
+            replicationState.reSync();
+          }
+        }, this.delay),
       );
+    }
+
+    if (!this.starting) {
+      this.startError = null;
+      this.starting = this.startInBackground();
     }
   }
 
@@ -63,16 +95,21 @@ export class Manager {
   }
 
   async cancel(): Promise<void> {
+    await this.stop();
     await Promise.all(
-      this.replications.map((replicationState) => replicationState.cancel())
+      this.replications.map((replicationState) => replicationState.cancel()),
     );
   }
 
   async awaitInSync(): Promise<void> {
+    await this.starting;
+    if (this.startError) {
+      throw this.startError;
+    }
     await Promise.all(
       this.replications.map((replicationState) =>
-        replicationState.awaitInSync()
-      )
+        replicationState.awaitInSync(),
+      ),
     );
   }
 
@@ -81,20 +118,93 @@ export class Manager {
       return;
     }
 
-    this.initialSyncFinished = false;
-    try {
-      await Promise.all(
-        this.replications.map(async (replicationState) => {
-          await replicationState.awaitInitialReplication();
-        })
-      );
-    } finally {
-      this.initialSyncFinished = true;
+    await this.starting;
+    if (this.startError) {
+      throw this.startError;
     }
+    await Promise.all(
+      this.replications.map((replicationState) =>
+        replicationState.awaitInitialReplication(),
+      ),
+    );
+    this.initialSyncFinished = true;
   }
 
   isInitialSyncFinished(): boolean {
     return this.initialSyncFinished;
+  }
+
+  private async startInOrder(): Promise<void> {
+    const starts = new Map<RxReplicationState<any, any>, Promise<void>>();
+    await Promise.all(
+      this.replications.map((state) =>
+        this.startWithDependencies(state, starts, new Set()),
+      ),
+    );
+  }
+
+  private async startInBackground(): Promise<void> {
+    try {
+      await this.startInOrder();
+    } catch (error) {
+      const value = error as {
+        replicationState?: RxReplicationState<any, any>;
+      };
+
+      this.startError =
+        error instanceof Error ? error : new Error(String(error));
+
+      await this.stop();
+      this.errorSubject.next({
+        error: this.startError,
+        replicationState: value?.replicationState,
+      });
+    } finally {
+      this.starting = null;
+    }
+  }
+
+  private async startWithDependencies(
+    replicationState: RxReplicationState<any, any>,
+    starts: Map<RxReplicationState<any, any>, Promise<void>>,
+    ancestors: Set<RxReplicationState<any, any>>,
+  ): Promise<void> {
+    if (replicationState.wasStarted) {
+      return;
+    }
+
+    if (ancestors.has(replicationState)) {
+      const error = new Error(
+        `Circular dependency detected on replication '${replicationState.replicationIdentifier}'`,
+      );
+
+      (error as any).replicationState = replicationState;
+      throw error;
+    }
+
+    if (starts.has(replicationState)) {
+      return starts.get(replicationState);
+    }
+
+    const path = new Set(ancestors).add(replicationState);
+    const starting = (async () => {
+      const dependencies = replicationDependencies.get(replicationState) ?? [];
+      await Promise.all(
+        dependencies.map(async (dependency) => {
+          await this.startWithDependencies(dependency, starts, path);
+          await dependency.awaitInitialReplication();
+        }),
+      );
+
+      try {
+        await replicationState.start();
+      } catch (error) {
+        (error as any).replicationState = replicationState;
+        throw error;
+      }
+    })();
+    starts.set(replicationState, starting);
+    return starting;
   }
 }
 
@@ -117,6 +227,7 @@ export function replicateOrion<RxDocType>({
   autoStart = false,
   transporter = executeFetch,
   rowError = checkRowError,
+  dependsOn,
 }: OrionReplicationOptions<RxDocType>): RxReplicationState<RxDocType, any> {
   const primaryPath = collection.schema.primaryPath;
   const pullStream$ = new Subject<RxReplicationPullStreamItem<any, any>>();
@@ -166,8 +277,13 @@ export function replicateOrion<RxDocType>({
     batchSize,
     modifier: modifier?.push,
     handler: async (
-      rows: RxReplicationWriteToMasterRow<RxDocType>[]
+      rows: RxReplicationWriteToMasterRow<RxDocType>[],
     ): Promise<WithDeleted<RxDocType>[]> => {
+      // Gate the handler itself: initial sync and reSync bypass waitBeforePersist.
+      await waitForDependencies(replicationState, dependsOn);
+      if (replicationState.isStopped()) {
+        return [];
+      }
       const result = await executePush({
         url,
         rows,
@@ -185,8 +301,8 @@ export function replicateOrion<RxDocType>({
     },
   };
 
-  return replicateRxCollection({
-    replicationIdentifier: ORION_REPLICATION_PREFIX + collection.name,
+  const replicationState = replicateRxCollection({
+    replicationIdentifier: PREFIX_ORION + collection.name,
     pull: replicationPrimitivesPull,
     push: replicationPrimitivesPush,
     collection,
@@ -196,4 +312,10 @@ export function replicateOrion<RxDocType>({
     waitForLeadership,
     autoStart,
   });
+
+  if (dependsOn) {
+    replicationDependencies.set(replicationState, dependsOn);
+  }
+
+  return replicationState;
 }

@@ -9,6 +9,8 @@ import { RxReplicationState } from 'rxdb/plugins/replication';
 
 export const STATUS_NOT_FOUND = 404;
 
+export const PREFIX_ORION = 'orion-';
+
 export type RequestHeaders = Record<string, string | number | boolean>;
 export type RequestParams = Record<string, string | number | object | boolean>;
 
@@ -37,7 +39,7 @@ export type RowErrorHandler = (error: unknown) => boolean;
 
 export type ManagerError = {
   error: Error;
-  replicationState: RxReplicationState<any, any>;
+  replicationState?: RxReplicationState<any, any>;
 };
 
 export interface Modifier<RxDocType> {
@@ -89,4 +91,5 @@ export type OrionReplicationOptions<RxDocType> = OrionBaseOptions &
     modifier?: Modifier<RxDocType>;
     exclude?: ExcludeOptions;
     include?: string[];
+    dependsOn?: RxReplicationState<any, any>[];
   };

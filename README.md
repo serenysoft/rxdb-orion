@@ -110,6 +110,34 @@ class CreateCategoriesTable extends Migration
 > When a model has `hasMany` relations, replications run **in parallel**. Child records can be created before their parent record, so a foreign key constraint may be violated on the server.
 >
 > For this reason, do **not** create a foreign key constraint for `hasMany` relations in your migrations. Store the parent id as a plain column instead.
+>
+> When the server must observe the parent record only after its children, declare the children with `dependsOn`. The `Manager` starts the dependencies and awaits their initial replication before starting the dependent, and every dependent push waits for the dependencies to be in sync:
+>
+> ```typescript
+> const childReplication = replicateOrion({
+>   url: 'http://my.fake.api/lines',
+>   collection: lines,
+> });
+>
+> const parentReplication = replicateOrion({
+>   url: 'http://my.fake.api/headers',
+>   collection: headers,
+>   dependsOn: [childReplication],
+> });
+>
+> const manager = new Manager([
+>   parentReplication,
+>   childReplication
+> ], 5000);
+>
+> await manager.start();
+> ```
+>
+> Independent collections start and poll in parallel, even while a dependency is still syncing. The dependency check applies to every push, including initial sync, retries and periodic resyncs.
+>
+> Save child changes locally before saving the parent change that depends on them. This ordering is not a transaction across collections and cannot include child writes made after the dependency check. Include every dependency in the manager so it is polled and canceled with the rest.
+>
+> `start()` schedules initialization without waiting for synchronization; use `awaitInitialSync()` when needed. `stop()` only stops periodic polling; `cancel()` also cancels replication. Pending writes remain in local storage for the next replication, provided the database is preserved.
 
 ### Model
 

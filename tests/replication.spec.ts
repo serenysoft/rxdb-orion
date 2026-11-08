@@ -8,7 +8,7 @@ import {
   executePush,
   extractArrayReferences,
 } from '../src/helpers';
-import { Transporter } from '../src/types';
+import { ManagerError, Transporter } from '../src/types';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import fetch from 'node-fetch';
@@ -60,11 +60,11 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      })
+      }),
     );
 
     const results = (await users.find().exec()).map((user) =>
-      user.toMutableJSON()
+      user.toMutableJSON(),
     );
 
     expect(results).toEqual([
@@ -153,11 +153,11 @@ describe('Replication', () => {
           include: 'roles,tags',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     const results = (await users.find().exec()).map((user) =>
-      user.toMutableJSON()
+      user.toMutableJSON(),
     );
 
     expect(results).toEqual(
@@ -169,7 +169,7 @@ describe('Replication', () => {
           roles: ['100'],
           tags: [],
         },
-      ])
+      ]),
     );
   });
 
@@ -211,7 +211,7 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      })
+      }),
     );
 
     expect(transporter).toHaveBeenNthCalledWith(
@@ -220,7 +220,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.push/users/1/roles/sync',
         method: 'PATCH',
         data: { 'resources': ['100', '200'] },
-      })
+      }),
     );
 
     //the nth 4 is reference to `RESYNC`
@@ -230,7 +230,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users/1',
         method: 'DELETE',
-      })
+      }),
     );
   });
 
@@ -263,7 +263,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push/users-exclude/search',
         method: 'POST',
-      })
+      }),
     );
 
     expect(transporter).toHaveBeenNthCalledWith(
@@ -279,8 +279,351 @@ describe('Replication', () => {
         headers: {
           'Accept': 'application/json',
         },
-      })
+      }),
     );
+  });
+
+  it('Should start dependencies before dependents and order pushes', async () => {
+    const roles = database.collections.roles;
+    const users = database.collections.users;
+
+    const order: string[] = [];
+
+    const rolesState = replicateOrion({
+      url: 'http://api.fake.deps/roles',
+      collection: roles,
+      batchSize: 3,
+      waitForLeadership: false,
+      transporter: async (request: any) => {
+        order.push(`${request.url} ${request.method}`);
+        return request.url.includes('/search') ? { data: [] } : { data: {} };
+      },
+    });
+
+    const usersState = replicateOrion({
+      url: 'http://api.fake.deps/users',
+      collection: users,
+      batchSize: 3,
+      waitForLeadership: false,
+      dependsOn: [rolesState],
+      transporter: async (request: any) => {
+        order.push(`${request.url} ${request.method}`);
+        return request.url.includes('/search') ? { data: [] } : { data: {} };
+      },
+    });
+
+    const manager = new Manager([usersState, rolesState], 1000);
+
+    await manager.start();
+    await manager.awaitInitialSync();
+
+    // Initial sync of the dependency must finish before the dependent starts.
+    const rolesSearch = order.findIndex(
+      (entry) => entry === 'http:/api.fake.deps/roles/search POST',
+    );
+    const usersSearch = order.findIndex(
+      (entry) => entry === 'http:/api.fake.deps/users/search POST',
+    );
+
+    expect(rolesSearch).toBeGreaterThanOrEqual(0);
+    expect(usersSearch).toBeGreaterThan(rolesSearch);
+
+    // Live pushes of the dependency must finish before the dependent pushes.
+    order.length = 0;
+
+    await roles.insert({ id: 'R-DEP', name: 'Child' });
+    await users.insert({ id: 'U-DEP', name: 'Parent', roles: [] });
+
+    await manager.awaitInSync();
+
+    const pushOrder = order
+      .filter((entry) => entry.endsWith(' POST') && !entry.includes('/search'))
+      .map((entry) => entry.replace(/ POST$/, ''));
+
+    expect(pushOrder).toEqual([
+      'http:/api.fake.deps/roles',
+      'http:/api.fake.deps/users',
+    ]);
+
+    await manager.stop();
+    await manager.cancel();
+  }, 15000);
+
+  it('Should wait for child pushes even when the parent is resynced', async () => {
+    let releaseChild!: () => void;
+    const childGate = new Promise<void>((resolve) => {
+      releaseChild = resolve;
+    });
+    let childStarted!: () => void;
+    const childPending = new Promise<void>((resolve) => {
+      childStarted = resolve;
+    });
+    const order: string[] = [];
+    const child = replicateOrion({
+      collection: database.roles,
+      url: 'http://fake/roles',
+      waitForLeadership: false,
+      transporter: async (request) => {
+        if (request.url.endsWith('/search')) return { data: [] };
+        childStarted();
+        await childGate;
+        order.push('child');
+        return { data: {} };
+      },
+    });
+    const parent = replicateOrion({
+      collection: database.users,
+      url: 'http://fake/users',
+      waitForLeadership: false,
+      dependsOn: [child],
+      transporter: async (request) => {
+        if (request.url.endsWith('/search')) return { data: [] };
+        order.push('parent');
+        return { data: {} };
+      },
+    });
+    const manager = new Manager([parent, child], 20);
+    try {
+      await manager.start();
+      await manager.awaitInitialSync();
+      await database.roles.insert({ id: 'child', name: 'Child' });
+      await childPending;
+      await database.users.insert({ id: 'parent', name: 'Parent', roles: [] });
+      parent.reSync();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(order).toEqual([]);
+      releaseChild();
+      await manager.awaitInSync();
+      expect(order).toEqual(['child', 'parent']);
+    } finally {
+      releaseChild();
+      await manager.cancel();
+    }
+  });
+
+  it('Should sync independent collections and resume polling during pending initialization', async () => {
+    let releaseChild!: () => void;
+    const childGate = new Promise<void>((resolve) => {
+      releaseChild = resolve;
+    });
+    const child = replicateOrion({
+      collection: database.roles,
+      url: 'http://fake/roles',
+      waitForLeadership: false,
+      transporter: async () => {
+        await childGate;
+        return { data: [] };
+      },
+    });
+    const parent = replicateOrion({
+      collection: database.users,
+      url: 'http://fake/users',
+      waitForLeadership: false,
+      dependsOn: [child],
+      transporter: async () => ({ data: [] }),
+    });
+    const independent = replicateOrion({
+      collection: database.tags,
+      url: 'http://fake/tags',
+      waitForLeadership: false,
+      transporter: async () => ({ data: [] }),
+    });
+    const resync = jest.spyOn(independent, 'reSync');
+    const startChild = jest.spyOn(child, 'start');
+    const manager = new Manager([parent, child, independent], 20);
+    try {
+      await manager.start();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(independent.wasStarted).toBe(true);
+      expect(parent.wasStarted).toBe(false);
+      expect(resync).toHaveBeenCalled();
+      expect(startChild).toHaveBeenCalledTimes(1);
+      await manager.stop();
+      resync.mockClear();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(resync).not.toHaveBeenCalled();
+      await manager.start();
+      releaseChild();
+      await manager.awaitInitialSync();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(resync).toHaveBeenCalled();
+      expect(startChild).toHaveBeenCalledTimes(1);
+    } finally {
+      releaseChild();
+      await manager.cancel();
+    }
+  });
+
+  it('Should not push a canceled parent when its dependency finishes', async () => {
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const child = replicateOrion({
+      collection: database.roles,
+      url: 'http://fake/roles',
+      waitForLeadership: false,
+      transporter: async (request) => {
+        if (!request.url.endsWith('/search')) await pending;
+        return { data: request.url.endsWith('/search') ? [] : {} };
+      },
+    });
+    const pushes = jest.fn();
+    const parent = replicateOrion({
+      collection: database.users,
+      url: 'http://fake/users',
+      waitForLeadership: false,
+      dependsOn: [child],
+      transporter: async (request) => {
+        if (!request.url.endsWith('/search')) pushes();
+        return { data: request.url.endsWith('/search') ? [] : {} };
+      },
+    });
+    const manager = new Manager([parent, child], 20);
+    try {
+      await manager.start();
+      await manager.awaitInitialSync();
+      await database.roles.insert({ id: 'cancel-child', name: 'Child' });
+      await database.users.insert({
+        id: 'cancel-parent',
+        name: 'Parent',
+        roles: [],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await parent.cancel();
+      // Cancellation must release the parent's queue even while the child waits.
+      await parent.internalReplicationState!.streamQueue.up;
+      release();
+      await child.awaitInSync();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(pushes).not.toHaveBeenCalled();
+      expect(
+        await database.users.findOne('cancel-parent').exec(),
+      ).not.toBeNull();
+    } finally {
+      release();
+      await manager.cancel();
+    }
+
+    const name = database.name;
+    await database.close();
+    database = await initDatabase(name);
+    const recoveredChild = replicateOrion({
+      collection: database.roles,
+      url: 'http://fake/roles',
+      waitForLeadership: false,
+      transporter: async () => ({ data: [] }),
+    });
+    const recoveredParent = replicateOrion({
+      collection: database.users,
+      url: 'http://fake/users',
+      waitForLeadership: false,
+      dependsOn: [recoveredChild],
+      transporter: async (request) => {
+        if (!request.url.endsWith('/search')) pushes(request.data.id);
+        return { data: request.url.endsWith('/search') ? [] : {} };
+      },
+    });
+    const recoveredManager = new Manager([recoveredParent, recoveredChild], 20);
+    try {
+      await recoveredManager.start();
+      await recoveredManager.awaitInitialSync();
+      expect(pushes).toHaveBeenCalledTimes(1);
+      expect(pushes).toHaveBeenCalledWith('cancel-parent');
+    } finally {
+      await recoveredManager.cancel();
+    }
+  });
+
+  it('Should keep the parent pending through repeated dependency failures', async () => {
+    let online = false;
+    let attempts = 0;
+    const order: string[] = [];
+    const child = replicateOrion({
+      collection: database.roles,
+      url: 'http://fake/roles',
+      waitForLeadership: false,
+      retryTime: 20,
+      transporter: async (request) => {
+        if (request.url.endsWith('/search')) return { data: [] };
+        attempts++;
+        if (!online) throw new Error('Offline');
+        order.push('child');
+        return { data: {} };
+      },
+    });
+    const parent = replicateOrion({
+      collection: database.users,
+      url: 'http://fake/users',
+      waitForLeadership: false,
+      dependsOn: [child],
+      transporter: async (request) => {
+        if (request.url.endsWith('/search')) return { data: [] };
+        order.push('parent');
+        return { data: {} };
+      },
+    });
+    const manager = new Manager([parent, child], 20);
+    const errors = jest.fn();
+    const subscription = manager.errors$.subscribe(errors);
+    try {
+      await manager.start();
+      await manager.awaitInitialSync();
+      await database.roles.insert({ id: 'retry-child', name: 'Child' });
+      await database.users.insert({
+        id: 'retry-parent',
+        name: 'Parent',
+        roles: [],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(attempts).toBeGreaterThan(1);
+      expect(errors).toHaveBeenCalled();
+      expect(order).toEqual([]);
+      online = true;
+      await manager.awaitInSync();
+      expect(order).toEqual(['child', 'parent']);
+    } finally {
+      online = true;
+      subscription.unsubscribe();
+      await manager.cancel();
+    }
+  });
+
+  it('Should report circular dependencies without completing initial sync', async () => {
+    const dependencies: RxReplicationState<any, any>[] = [];
+    const transporter = jest.fn(async (): Promise<{ data: unknown[] }> => ({
+      data: [],
+    }));
+    const child = replicateOrion({
+      collection: database.roles,
+      url: 'http://fake/roles',
+      waitForLeadership: false,
+      dependsOn: dependencies,
+      transporter,
+    });
+    const parent = replicateOrion({
+      collection: database.users,
+      url: 'http://fake/users',
+      waitForLeadership: false,
+      dependsOn: [child],
+      transporter,
+    });
+    dependencies.push(parent);
+    const manager = new Manager([parent, child], 20);
+    const errors = jest.fn();
+    const subscription = manager.errors$.subscribe(errors);
+    try {
+      await manager.start();
+      await expect(manager.awaitInitialSync()).rejects.toThrow(
+        'Circular dependency',
+      );
+      expect(manager.isInitialSyncFinished()).toBe(false);
+      expect(errors).toHaveBeenCalled();
+      expect(transporter).not.toHaveBeenCalled();
+    } finally {
+      subscription.unsubscribe();
+      await manager.cancel();
+    }
   });
 
   it('Should manage multiple replications', async () => {
@@ -338,15 +681,15 @@ describe('Replication', () => {
 
     await replicationState.awaitInSync();
 
-    // Insert is pushed as PUT because RxDB assigns an assumedMasterState
+    // A new document has no assumed master state and must be inserted.
     expect(transporter).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        url: 'http:/api.fake.push-attachments/users/1',
-        method: 'PUT',
+        url: 'http:/api.fake.push-attachments/users',
+        method: 'POST',
         data: { id: '1', name: 'Bill', _attachments: {} },
         headers: { 'Accept': 'application/json' },
-      })
+      }),
     );
 
     await user.putAttachment({
@@ -375,7 +718,7 @@ describe('Replication', () => {
           }),
         }),
         headers: { 'Accept': 'application/json' },
-      })
+      }),
     );
 
     // Verify the attachment is still accessible locally
@@ -410,7 +753,7 @@ describe('Replication', () => {
         url: 'http:/api.fake.pull-attachments/users/search',
         method: 'POST',
         headers: { 'Accept': 'application/json' },
-      })
+      }),
     );
 
     // Verify pulled documents were stored with attachments accessible
@@ -477,10 +820,7 @@ describe('Replication', () => {
 
     const manager = new Manager([failingReplication], 1000);
 
-    const firstError = new Promise<{
-      replicationState: typeof failingReplication;
-      error: Error;
-    }>((resolve) => {
+    const firstError = new Promise<ManagerError>((resolve) => {
       const subscription = manager.errors$.subscribe((event) => {
         resolve(event);
         subscription.unsubscribe();
@@ -495,7 +835,7 @@ describe('Replication', () => {
       new Promise<never>((_, reject) => {
         timeoutId = setTimeout(
           () => reject(new Error('No error emitted')),
-          5000
+          5000,
         );
       }),
     ]).finally(() => {
@@ -534,7 +874,7 @@ describe('Replication', () => {
           include: 'roles,tags,permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     expect(result).toEqual([
@@ -571,7 +911,7 @@ describe('Replication', () => {
           include: 'tags,permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     expect(result).toEqual([
@@ -608,7 +948,7 @@ describe('Replication', () => {
           include: 'permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
 
     expect(result).toEqual([
@@ -647,7 +987,7 @@ describe('Replication', () => {
           include: 'roles,tags,permissions',
           with_trashed: true,
         },
-      })
+      }),
     );
   }, 10000);
 
@@ -683,7 +1023,7 @@ describe('Replication', () => {
         url: 'http:/fake.test/users',
         method: 'POST',
         data: { id: 'INCPUSH-1', name: 'IncludePushUser' },
-      })
+      }),
     );
   }, 10000);
 
@@ -723,7 +1063,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push-not-found/users/1',
         method: 'DELETE',
-      })
+      }),
     );
 
     expect(pushTransporter).toHaveBeenNthCalledWith(
@@ -731,7 +1071,7 @@ describe('Replication', () => {
       expect.objectContaining({
         url: 'http:/api.fake.push-not-found/users',
         method: 'POST',
-      })
+      }),
     );
   });
 
@@ -786,7 +1126,7 @@ describe('Replication', () => {
         primaryPath: 'id',
         exclude: [],
         transporter: pushTransporter,
-      })
+      }),
     ).rejects.toEqual(notFound);
   });
 
@@ -843,7 +1183,7 @@ describe('Replication', () => {
         exclude: [],
         rowError: () => false,
         transporter: pushTransporter,
-      })
+      }),
     ).rejects.toEqual(notFound);
   });
 

@@ -1,6 +1,7 @@
 import { addRxPlugin, createRxDatabase } from 'rxdb';
 import { RxDBAttachmentsPlugin } from 'rxdb/plugins/attachments';
 import { getRxStorageMemory } from 'rxdb/plugins/storage-memory';
+import { randomUUID } from 'crypto';
 
 addRxPlugin(RxDBAttachmentsPlugin);
 
@@ -102,9 +103,9 @@ export const memberSchema = {
   },
 };
 
-export async function initDatabase() {
+export async function initDatabase(name = 'testdb-' + randomUUID()) {
   const database = await createRxDatabase({
-    name: 'testdb',
+    name,
     storage: getRxStorageMemory(),
     multiInstance: false,
   });
