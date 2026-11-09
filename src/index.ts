@@ -75,7 +75,11 @@ export class Manager {
     for (const replicationState of this.replications) {
       this.intervals.push(
         setInterval(() => {
-          if (replicationState.wasStarted && !replicationState.isStopped()) {
+          if (
+            replicationState.wasStarted &&
+            !replicationState.isStoppedOrPaused() &&
+            !replicationState.subjects.active.getValue()
+          ) {
             replicationState.reSync();
           }
         }, this.delay),
