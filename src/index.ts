@@ -77,6 +77,7 @@ export class Manager {
         setInterval(() => {
           if (
             replicationState.wasStarted &&
+            replicationState.internalReplicationState &&
             !replicationState.isStoppedOrPaused() &&
             !replicationState.subjects.active.getValue()
           ) {

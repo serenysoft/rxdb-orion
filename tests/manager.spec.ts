@@ -48,11 +48,27 @@ describe('Manager', () => {
         return { data: [] };
       },
     });
+    let releaseStart!: () => void;
+    const starting = new Promise<void>((resolve) => {
+      releaseStart = resolve;
+    });
+    const metaInfo = state.metaInfoPromise;
+    const delayedStart = jest.replaceProperty(
+      state,
+      'metaInfoPromise',
+      starting.then(() => metaInfo),
+    );
     const manager = new Manager([state], 10);
     const resync = jest.spyOn(state, 'reSync');
 
     try {
       await manager.start();
+      // Hold startup where wasStarted is true but the internal state is absent.
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(state.wasStarted).toBe(true);
+      expect(state.internalReplicationState).toBeUndefined();
+      expect(resync).not.toHaveBeenCalled();
+      releaseStart();
       await entered;
       // Accelerate the polling interval to reproduce a prolonged blocked request.
       await new Promise((resolve) => setTimeout(resolve, 150));
@@ -62,8 +78,10 @@ describe('Manager', () => {
       await new Promise((resolve) => setTimeout(resolve, 30));
       expect(resync).toHaveBeenCalled();
     } finally {
+      releaseStart();
       releasePull();
       await manager.cancel();
+      delayedStart.restore();
     }
   });
 
