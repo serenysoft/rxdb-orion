@@ -11,6 +11,7 @@ import {
 import { Transporter } from '../src/types';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { orderBy } from 'lodash';
 import fetch from 'node-fetch';
 import './replication.mock';
 
@@ -71,6 +72,108 @@ describe('Replication', () => {
       { id: '10', name: 'Jeff', roles: ['100'], tags: ['300', '301'] },
       { id: '11', name: 'Mark', roles: ['200'], tags: [] },
     ]);
+  });
+
+  it('Should not skip timestamp ties when paginating', async () => {
+    const primaryPath = 'id';
+    const updatedField = 'updated_at';
+    await database.addCollections({
+      items: {
+        schema: {
+          version: 0,
+          primaryKey: primaryPath,
+          type: 'object',
+          properties: {
+            [primaryPath]: { type: 'string', maxLength: 100 },
+            [updatedField]: { type: 'string' },
+          },
+          required: [primaryPath],
+        },
+      },
+    });
+    const timestamp = '2026-11-16 12:00:00';
+    const documents = ['03', '02', '01'].map((id) => ({
+      [primaryPath]: id,
+      [updatedField]: timestamp,
+    }));
+    const server: Transporter = jest.fn(async ({ data, params }) => {
+      const [updatedAt, id] = data.scopes[0].parameters;
+      const filteredDocuments = updatedAt
+        ? documents.filter(
+            (doc) =>
+              doc[updatedField] > updatedAt ||
+              (doc[updatedField] === updatedAt && doc[primaryPath] > id),
+          )
+        : documents;
+
+      return {
+        data: orderBy(filteredDocuments, [updatedField, primaryPath]).slice(
+          0,
+          params!.limit as number,
+        ),
+      };
+    });
+    replicationState = replicateOrion({
+      url: '/items',
+      collection: database.collections.items,
+      updatedField,
+      transporter: server,
+      waitForLeadership: false,
+    });
+
+    const first = await replicationState.pull!.handler(undefined, 2);
+    const second = await replicationState.pull!.handler(first.checkpoint, 2);
+
+    expect(server).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: {
+          scopes: [{ name: 'minUpdatedAt', parameters: [] }],
+        },
+      }),
+    );
+    expect(server).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: {
+          scopes: [{ name: 'minUpdatedAt', parameters: [timestamp, '02'] }],
+        },
+      }),
+    );
+    expect(
+      [...first.documents, ...second.documents].map((doc) => doc[primaryPath]),
+    ).toEqual(['01', '02', '03']);
+    expect(first.checkpoint).toEqual({
+      [primaryPath]: '02',
+      [updatedField]: timestamp,
+    });
+  });
+
+  it('Should reject collections with a composite primary key', async () => {
+    await database.addCollections({
+      items: {
+        schema: {
+          version: 0,
+          primaryKey: { key: 'id', fields: ['tenant', 'key'], separator: '|' },
+          type: 'object',
+          properties: {
+            id: { type: 'string', maxLength: 100 },
+            tenant: { type: 'string' },
+            key: { type: 'string' },
+          },
+          required: ['tenant', 'key'],
+        },
+      },
+    });
+
+    expect(() =>
+      replicateOrion({
+        url: 'http://api.fake.pull/items',
+        collection: database.collections.items,
+        transporter,
+      }),
+    ).toThrow('Composite primary keys are not supported by rxdb-orion');
+    expect(transporter).not.toHaveBeenCalled();
   });
 
   it('Should map pull references from snake_case ref property', async () => {

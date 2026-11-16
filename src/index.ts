@@ -234,6 +234,10 @@ export function replicateOrion<RxDocType>({
   rowError = checkRowError,
   dependsOn,
 }: OrionReplicationOptions<RxDocType>): RxReplicationState<RxDocType, any> {
+  if (typeof collection.schema.jsonSchema.primaryKey !== 'string') {
+    throw new Error('Composite primary keys are not supported by rxdb-orion');
+  }
+
   const primaryPath = collection.schema.primaryPath;
   const pullStream$ = new Subject<RxReplicationPullStreamItem<any, any>>();
 
@@ -242,15 +246,18 @@ export function replicateOrion<RxDocType>({
     modifier: modifier?.pull,
     stream$: pullStream$.asObservable(),
     handler: async (lastCheckpoint: any, batchSize: number) => {
-      const data = {} as any;
+      const parameters = lastCheckpoint
+        ? [lastCheckpoint[updatedField], lastCheckpoint[primaryPath]]
+        : [];
 
-      if (!lastCheckpoint) {
-        data.sort = [{ field: updatedField, direction: 'asc' }];
-      } else {
-        const id = lastCheckpoint[primaryPath];
-        const updatedAt = lastCheckpoint[updatedField];
-        data.scopes = [{ name: updatedParam, parameters: [updatedAt, id] }];
-      }
+      const data = {
+        scopes: [
+          {
+            name: updatedParam,
+            parameters,
+          },
+        ],
+      };
 
       const result = await executePull({
         url,

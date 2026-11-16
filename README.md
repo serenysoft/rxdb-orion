@@ -150,6 +150,11 @@ Therefore, it is recommended to create a trait for making the necessary model cu
 
 namespace App\Traits;
 
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
+use DateTimeImmutable;
+use DateTimeInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 
 trait Syncable {
@@ -180,32 +185,41 @@ trait Syncable {
     }
 
     /**
-     * Scope a query to only include models changed after given value.
+     * Scope a query to models changed after the checkpoint, when provided.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  int  $updatedAt
-     * @param  string  $id
+     * @param  string|null  $updatedAt
+     * @param  string|null  $id
      * @return \Illuminate\Database\Eloquent\Builder
      */
-      public function scopeMinUpdatedAt(Builder $query, string $updatedAt, ?string $id = null): Builder
-      {
-          return $query->where('updated_at', '>', $updatedAt)
-              ->when($id, fn($query) =>
-                  $query->orWhere(function($query) use ($updatedAt, $id) {
-                      $query->where('updated_at', $updatedAt)->where('id', '>', $id);
-                  })
-              )
-              ->orderBy('updated_at');
-      }
+    public function scopeMinUpdatedAt(
+        Builder $query,
+        ?string $updatedAt = null,
+        ?string $id = null
+    ): Builder {
+        return $query
+            ->when($updatedAt !== null, fn ($query) =>
+                $query->whereRowValues(
+                    ['updated_at', 'id'],
+                    '>',
+                    [$updatedAt, $id]
+                )
+            )
+            ->orderBy('updated_at')
+            ->orderBy('id');
+    }
 }
 
 ```
+
+The first pull calls the scope without parameters; subsequent pulls provide both the timestamp and primary key. RxDB collections must use a simple primary key; composite primary keys are not supported. This example requires a database that supports row-value comparisons, such as MySQL, PostgreSQL, or SQLite. It assumes `updated_at` and the primary key are non-null and uses their ascending order for pagination.
 
 ```php
 <?php
 
 namespace App\Models;
 
+use App\Traits\Syncable;
 use Illuminate\Database\Eloquent\Model;
 
 class User extends Model {
